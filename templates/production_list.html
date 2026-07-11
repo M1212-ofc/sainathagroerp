@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Production · Sainath Agro ERP{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h2>Production Reports</h2>
+  {% if can_access('production') %}<a href="{{ url_for('production_entry') }}" class="btn-primary">+ New Report</a>{% endif %}
+</div>
+<form class="controls" method="get">
+  <div class="period-buttons">
+    <button name="period" value="week" class="{{ 'active' if period=='week' }}">Week</button>
+    <button name="period" value="month" class="{{ 'active' if period=='month' }}">Month</button>
+    <button name="period" value="7d" class="{{ 'active' if period=='7d' }}">7d</button>
+    <button name="period" value="30d" class="{{ 'active' if period=='30d' }}">30d</button>
+  </div>
+  <div class="custom-range">
+    <input type="date" name="start" value="{{ start }}"><span>to</span><input type="date" name="end" value="{{ end }}">
+    <button name="period" value="custom">Apply</button>
+  </div>
+  <a class="btn-export" href="{{ url_for('export_csv', what='production', period='custom', start=start, end=end) }}">⬇ CSV</a>
+</form>
+<div class="table-wrap">
+<table class="data-table">
+  <thead><tr><th>Date</th><th>Shift</th><th>Units</th><th>Buckets</th><th>Crushing</th><th>Cleaning</th><th>Waste</th><th>Reporter</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr>
+      <td>{{ r.report_date }}</td>
+      <td><span class="badge {{ 'day' if r.shift=='Day' else 'night' }}">{{ r.shift }}</span></td>
+      <td>{{ r.consumption }}</td><td>{{ r.raw_buckets }}</td>
+      <td>{{ r.crushing_total_kg }}</td><td>{{ r.cleaning_total_kg }}</td><td>{{ r.waste_kg }}</td>
+      <td>{{ r.reporter or '' }}</td>
+      <td class="row-actions">
+        {% if can_access('production') %}
+        <a href="{{ url_for('production_entry', edit=r.id) }}">Edit</a>
+        <form method="post" action="{{ url_for('production_delete', rid=r.id) }}" onsubmit="return confirm('Delete?')">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="link-danger">Delete</button></form>
+        {% endif %}
+      </td>
+    </tr>
+  {% else %}<tr><td colspan="10" class="empty">No reports in range.</td></tr>{% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Backup · Sainath Agro ERP{% endblock %}
+{% block content %}
+<h2 class="page-title">Backup &amp; Data Safety</h2>
+
+<div class="two-col">
+  <div class="panel">
+    <h3>⬇ Manual Backup</h3>
+    <p class="hint" style="margin:8px 0 14px">Download a ZIP containing one CSV file per table (all your data, human-readable in Excel).</p>
+    <a href="{{ url_for('backup_download') }}" class="btn-primary" style="display:inline-block">Download Backup Now</a>
+  </div>
+
+  <div class="panel">
+    <h3>✉ Daily Email Backup</h3>
+    {% if email_configured %}
+      <p class="hint" style="margin:8px 0 6px">Configured to email backups to <b>{{ email_to }}</b>.</p>
+      <p class="hint" style="margin:0 0 14px">A daily scheduled task on PythonAnywhere sends this automatically. You can also send one now:</p>
+      <form method="post" action="{{ url_for('backup_email_now') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn-primary">Email Backup Now</button>
+      </form>
+    {% else %}
+      <p class="hint" style="margin:8px 0">Email backup is <b>not configured yet</b>. To enable daily emailed backups, set these environment variables on PythonAnywhere:</p>
+      <ul class="hint" style="margin:0 0 8px 18px">
+        <li><code>BREVO_API_KEY</code> — free Brevo account API key (300 emails/day)</li>
+        <li><code>BACKUP_EMAIL_TO</code> — your email address</li>
+        <li><code>BACKUP_EMAIL_FROM</code> — a verified sender in Brevo</li>
+      </ul>
+      <p class="hint">See the README section "Daily email backup" for the full setup.</p>
+    {% endif %}
+  </div>
+</div>
+
+{% if saved %}
+<h3 style="margin-top:22px">Recent Saved Backups (on server)</h3>
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>File</th></tr></thead>
+  <tbody>{% for f in saved %}<tr><td>{{ f }}</td></tr>{% endfor %}</tbody>
+</table></div>
+<p class="hint" style="margin-top:8px">These are kept in the server's <code>backups/</code> folder (latest 30). Retrieve them from the PythonAnywhere Files tab.</p>
+{% endif %}
+{% endblock %}

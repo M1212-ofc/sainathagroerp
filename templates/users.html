@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Users · Sainath Agro ERP{% endblock %}
+{% block content %}
+<h2 class="page-title">User Management</h2>
+
+<fieldset class="entry-form"><legend>Add User</legend>
+<form method="post">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add">
+  <div class="grid3">
+    <label>Username<input name="username" required></label>
+    <label>Full name<input name="full_name"></label>
+    <label>Password<input name="password" type="text" required></label>
+    <label>Role (sets default permissions)
+      <select name="role" id="newRole" onchange="applyTemplate()">
+        <option value="owner">Owner</option><option value="manager">Manager</option>
+        <option value="accountant">Accountant</option><option value="operator" selected>Operator</option>
+      </select></label>
+  </div>
+  <p class="hint" style="margin:10px 0 6px">Permissions (tick what this user can access — pre-filled from role, editable):</p>
+  <div class="perm-grid">
+    {% for key,label in all_modules %}
+      <label class="perm-check"><input type="checkbox" name="perms" value="{{ key }}" data-perm="{{ key }}"> {{ label }}</label>
+    {% endfor %}
+  </div>
+  <div class="form-actions"><button class="btn-primary">Add User</button></div>
+</form></fieldset>
+
+<h3 style="margin-top:22px">Existing Users</h3>
+{% for u in rows %}
+<div class="user-card">
+  <div class="user-card-head">
+    <div><b>{{ u.full_name or u.username }}</b> <span class="chip">{{ u.username }}</span>
+      <span class="badge {{ 'day' if u.active else 'red' }}">{{ 'Active' if u.active else 'Disabled' }}</span></div>
+    <div class="row-actions">
+      <form method="post" style="display:inline">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="role"><input type="hidden" name="uid" value="{{ u.id }}">
+        <select name="role" onchange="this.form.submit()" title="Change role resets permissions to role template">
+          {% for r in ['owner','manager','accountant','operator'] %}<option value="{{ r }}" {{ 'selected' if u.role==r }}>{{ r|capitalize }}</option>{% endfor %}
+        </select>
+      </form>
+      <form method="post" style="display:inline">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="toggle"><input type="hidden" name="uid" value="{{ u.id }}"><button class="link">{{ 'Disable' if u.active else 'Enable' }}</button></form>
+      <form method="post" style="display:inline" onsubmit="var p=prompt('New password for {{ u.username }}?');if(!p){return false;}this.password.value=p;return true;">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="reset"><input type="hidden" name="uid" value="{{ u.id }}"><input type="hidden" name="password" value=""><button class="link">Reset Password</button></form>
+    </div>
+  </div>
+  {% if u.role == 'owner' %}
+    <p class="hint">Owner has full access to everything (cannot be restricted).</p>
+  {% else %}
+  <form method="post">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="perms"><input type="hidden" name="uid" value="{{ u.id }}">
+    <div class="perm-grid">
+      {% for key,label in all_modules %}
+        <label class="perm-check"><input type="checkbox" name="perms" value="{{ key }}" {{ 'checked' if key in u.perm_list }}> {{ label }}</label>
+      {% endfor %}
+    </div>
+    <div class="form-actions"><button class="btn-primary" style="padding:7px 16px">Save Permissions</button></div>
+  </form>
+  {% endif %}
+</div>
+{% endfor %}
+
+<script>
+const TEMPLATES = {{ role_templates|tojson }};
+function applyTemplate(){
+  const role=document.getElementById('newRole').value;
+  const set=new Set(TEMPLATES[role]||[]);
+  document.querySelectorAll('[data-perm]').forEach(cb=>{cb.checked=set.has(cb.dataset.perm);});
+}
+applyTemplate();
+</script>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Electricity · Sainath Agro ERP{% endblock %}
+{% block content %}
+<h2 class="page-title">Electricity (MGVCL)</h2>
+
+<fieldset class="entry-form"><legend>Add / Update Monthly Bill</legend>
+<form method="post">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="grid3">
+    <label>Month<input type="month" name="month" required></label>
+    <label>Bill Amount (₹)<input type="number" step="any" name="amount_inr" required></label>
+    <label>Units billed (optional)<input type="number" step="any" name="units" placeholder="MGVCL units"></label>
+    <label>Note<input name="note" placeholder="optional"></label>
+  </div>
+  <div class="form-actions"><button class="btn-primary">Save Bill</button></div>
+  <small>Saving auto-posts this as an <b>electricity expense</b> in Finance, and computes cost-per-kg from that month's production.</small>
+</form></fieldset>
+
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>Month</th><th>Bill ₹</th><th>Units</th><th>Production (kg)</th><th>Cost / kg ₹</th><th>Note</th></tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr><td>{{ r.month }}</td><td>{{ '{:,.0f}'.format(r.amount) }}</td><td>{{ r.units or '—' }}</td>
+      <td>{{ '{:,.1f}'.format(r.production) }}</td>
+      <td>{% if r.cost_per_kg %}<b>₹{{ r.cost_per_kg }}</b>{% else %}—{% endif %}</td>
+      <td>{{ r.note or '' }}</td></tr>
+    {% endfor %}
+    {% if not rows %}<tr><td colspan="6" class="empty">No electricity bills entered yet.</td></tr>{% endif %}
+  </tbody>
+</table></div>
+{% endblock %}

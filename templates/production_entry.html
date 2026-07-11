@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if report else 'New' }} Production · Sainath Agro ERP{% endblock %}
+{% block content %}
+<h2 class="page-title">{{ 'Edit' if report else 'New' }} Daily Report (રોજીંદા વિગતો)</h2>
+<form method="post" class="entry-form" action="{{ url_for('production_entry') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% if report %}<input type="hidden" name="report_id" value="{{ report.id }}">{% endif %}
+  <fieldset><legend>Header</legend>
+    <div class="grid3">
+      <label>Date<input type="date" name="report_date" required value="{{ report.report_date if report else today }}"></label>
+      <label>Shift<select name="shift">
+        <option value="Day" {{ 'selected' if report and report.shift=='Day' }}>Day (દિવસ)</option>
+        <option value="Night" {{ 'selected' if report and report.shift=='Night' }}>Night (રાત)</option></select></label>
+      <label>Reel<input type="number" name="reel" value="{{ report.reel if report else '' }}"></label>
+      <label>On Time<input type="time" name="on_time" value="{{ report.on_time if report else '08:00' }}"></label>
+      <label>Off Time<input type="time" name="off_time" value="{{ report.off_time if report else '07:00' }}"></label>
+      <label>Persons – Machine 1<input type="number" name="persons_m1" value="{{ report.persons_m1 if report else '' }}"></label>
+      <label>Persons – Machine 2<input type="number" name="persons_m2" value="{{ report.persons_m2 if report else '' }}"></label>
+    </div>
+  </fieldset>
+  <fieldset><legend>MGVCL Electrical Meter</legend>
+    <div class="grid3">
+      <label>Start Unit (ચાલુ)<input type="number" step="any" name="start_unit" id="startUnit" value="{{ report.start_unit if report else '' }}"></label>
+      <label>Close Unit (બંધ)<input type="number" step="any" name="close_unit" id="closeUnit" value="{{ report.close_unit if report else '' }}"></label>
+      <label>Consumption (વપરાયેલ)<input type="number" step="any" name="consumption" id="consumption" value="{{ report.consumption if report else '' }}"><small>Auto = Close − Start</small></label>
+    </div>
+  </fieldset>
+  <fieldset><legend>Raw Material &amp; Waste</legend>
+    <div class="grid3">
+      <label>Raw Material consumed<select name="raw_material_id" id="rawMatSelect">
+        {% for m in materials %}<option value="{{ m.id }}" {{ 'selected' if (report and report.raw_material_id==m.id) or (not report and 'Corn Cob' in m.name) }}>{{ m.name }}</option>{% endfor %}
+      </select><small>Auto: Corn Cob (change if needed)</small></label>
+      <label>Raw Buckets Used<input type="number" name="raw_buckets" id="rawBuckets" value="{{ report.raw_buckets if report else '' }}"></label>
+      <label>Bucket Weight (KG each)<input type="number" step="any" name="bucket_weight" id="bucketWeight" value="{{ report.bucket_weight if report and report.bucket_weight else '25' }}"></label>
+      <label>Input Weight (KG) <span class="auto-badge">auto</span><input type="number" step="any" id="inputWeight" class="auto-field" readonly><small>= Buckets × Bucket Weight (deducted from raw stock)</small></label>
+      <div class="stock-hint" id="rawStockHint"></div>
+      <div id="yieldHint" class="yield-hint"></div>
+      <label>Waste (KG) <input type="number" step="any" name="waste_kg" id="wasteKg" value="{{ report.waste_kg if report else '' }}"><small>Auto = Input − Crushing output (editable)</small></label>
+    </div>
+  </fieldset>
+  <fieldset><legend>Production Lines (Crushing &amp; Cleaning)</legend>
+    <table class="lines-table" id="linesTable">
+      <thead><tr><th>Category</th><th>Name</th><th>Theli</th><th>Wt/bag</th><th>Total KG</th><th></th></tr></thead>
+      <tbody id="linesBody"></tbody>
+      <tfoot>
+        <tr class="totals-row"><td colspan="2">Crushing totals</td><td id="ctTheli">0</td><td></td><td id="ctKg">0</td><td></td></tr>
+        <tr class="totals-row"><td colspan="2">Cleaning totals</td><td id="clTheli">0</td><td></td><td id="clKg">0</td><td></td></tr>
+      </tfoot>
+    </table>
+    <button type="button" class="btn-add" id="addLine">+ Add line</button>
+  </fieldset>
+  <fieldset><legend>Worker Attendance (માણસોની હાજરી)</legend>
+    <table class="lines-table"><thead><tr><th style="width:40px">#</th><th>Name</th><th style="width:200px">Attendance</th><th style="width:90px">Hours</th><th style="width:90px">OT hrs</th><th></th></tr></thead><tbody id="workersBody"></tbody></table>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <select id="addWorkerSelect"><option value="">— re-add a removed worker —</option></select>
+      <button type="button" class="btn-add" id="addWorkerBtn">+ Add selected</button>
+      <button type="button" class="btn-add" id="addAllWorkers">+ Add all</button>
+    </div>
+    <small style="margin-top:6px">All workers load automatically as <b>Present</b> — just mark anyone Absent or Half-day. Manage the team in <a href="{{ url_for('masters', tab='workers') }}">Masters → Workers</a>.</small>
+  </fieldset>
+  <fieldset><legend>Loading / Attendance / Maintenance</legend>
+    <div class="grid3">
+      <label>Light Gayi – power-cut time<input type="text" name="light_gayi_time" value="{{ report.light_gayi_time if report else '' }}" placeholder="e.g. 2:15-2:45"></label>
+      <label>Loading Powder<input type="text" name="loading_powder" value="{{ report.loading_powder if report else '' }}"></label>
+      <label>Loading Grit<input type="text" name="loading_grit" value="{{ report.loading_grit if report else '' }}"></label>
+      <label>Loading Bhunar<input type="text" name="loading_bhunar" value="{{ report.loading_bhunar if report else '' }}"></label>
+      <label>Left with note (count)<input type="number" name="left_with_note" value="{{ report.left_with_note if report else '' }}"></label>
+      <label>Half-attendance<input type="text" name="half_attendance" value="{{ report.half_attendance if report else '' }}"></label>
+      <label>On-leave names<input type="text" name="on_leave_names" value="{{ report.on_leave_names if report else '' }}"></label>
+    </div>
+    <label>Maintenance<input type="text" name="maintenance" value="{{ report.maintenance if report else '' }}"></label>
+  </fieldset>
+  <fieldset><legend>Sign-off</legend>
+    <div class="grid2">
+      <label>Reporter<input type="text" name="reporter" value="{{ report.reporter if report else '' }}"></label>
+      <label>Office<input type="text" name="office" value="{{ report.office if report else '' }}"></label>
+    </div>
+    <label>Notes<textarea name="notes" rows="2">{{ report.notes if report else '' }}</textarea></label>
+  </fieldset>
+  <div class="form-actions"><button class="btn-primary">Save Report</button><a href="{{ url_for('production_list') }}" class="btn-cancel">Cancel</a></div>
+</form>
+<script>const existingLines={{ lines_json|safe }};const existingWorkers={{ workers_json|safe }};const masterWorkers={{ master_workers_json|safe }};</script>
+<script src="{{ url_for('static', filename='entry.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Waste · Sainath Agro ERP{% endblock %}
+{% block content %}
+<h2 class="page-title">Waste Management</h2>
+<p class="range-label">Range total: <b>{{ '{:,.1f}'.format(total_kg) }} KG</b> · Recovered value <b>₹{{ '{:,.0f}'.format(total_val) }}</b></p>
+{% if can_access('waste') %}
+<fieldset class="entry-form"><legend>Add Waste Entry</legend>
+<form method="post" action="{{ url_for('waste_page') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="grid3">
+    <label>Date<input type="date" name="waste_date" required value=""></label>
+    <label>Source<select name="source"><option>production</option><option>cleaning</option><option>manual</option></select></label>
+    <label>Material<input type="text" name="material"></label>
+    <label>Quantity (KG)<input type="number" step="any" name="quantity_kg"></label>
+    <label>Disposal<select name="disposal"><option>dumped</option><option>sold</option><option>reused</option></select></label>
+    <label>Recovered Value (₹)<input type="number" step="any" name="value_inr"></label>
+  </div>
+  <label>Notes<input type="text" name="notes"></label>
+  <div class="form-actions"><button class="btn-primary">Save Waste</button></div>
+</form></fieldset>
+{% endif %}
+<form class="controls" method="get" style="margin-top:16px">
+  <div class="period-buttons"><button name="period" value="month" class="{{ 'active' if period=='month' }}">Month</button>
+    <button name="period" value="30d" class="{{ 'active' if period=='30d' }}">30d</button>
+    <button name="period" value="year" class="{{ 'active' if period=='year' }}">Year</button></div>
+</form>
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>Date</th><th>Source</th><th>Material</th><th>Qty KG</th><th>Disposal</th><th>Value ₹</th><th>Notes</th></tr></thead>
+  <tbody>{% for r in rows %}<tr><td>{{ r.waste_date }}</td><td>{{ r.source }}</td><td>{{ r.material or '' }}</td>
+    <td>{{ r.quantity_kg }}</td><td><span class="chip">{{ r.disposal or '' }}</span></td><td>{{ r.value_inr }}</td><td>{{ r.notes or '' }}</td></tr>
+  {% else %}<tr><td colspan="7" class="empty">No waste in range.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

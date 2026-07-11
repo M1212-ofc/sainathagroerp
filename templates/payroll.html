@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Payroll · Sainath Agro ERP{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h2>Payroll</h2><div class="range-label">Wages calculated from attendance for {{ month }}</div></div>
+  <form method="get" style="display:flex;gap:8px;align-items:center">
+    <input type="month" name="month" value="{{ month }}" onchange="this.form.submit()">
+  </form>
+</div>
+
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>Worker</th><th>Type</th><th>Rate ₹</th><th>Present</th><th>Half</th><th>Absent</th><th>OT hrs</th><th>Base ₹</th><th>OT ₹</th><th>Total ₹</th></tr></thead>
+  <tbody>
+    {% for w in wages %}
+    <tr><td>{{ w.name }}</td><td>{{ w.pay_type }}</td><td>{{ w.rate }}</td>
+      <td>{{ w.present }}</td><td>{{ w.half }}</td><td>{{ w.absent }}</td><td>{{ w.ot_hours }}</td>
+      <td>{{ '{:,.0f}'.format(w.base) }}</td><td>{{ '{:,.0f}'.format(w.ot_pay) }}</td>
+      <td><b>{{ '{:,.0f}'.format(w.total) }}</b></td></tr>
+    {% endfor %}
+    {% if not wages %}<tr><td colspan="10" class="empty">No workers. Add them in Masters → Workers with pay rates.</td></tr>{% endif %}
+  </tbody>
+  {% if wages %}<tfoot><tr class="totals-row"><td colspan="9">Total wages for {{ month }}</td><td>₹{{ '{:,.0f}'.format(grand) }}</td></tr></tfoot>{% endif %}
+</table></div>
+
+{% if wages %}
+<div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+  {% if already_posted %}
+    <span class="flash ok" style="margin:0">✓ Wages for {{ month }} already posted to Finance. Re-posting will replace them.</span>
+  {% endif %}
+  <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="post"><input type="hidden" name="month" value="{{ month }}">
+    <button class="btn-primary" onclick="return confirm('Post ₹{{ '{:,.0f}'.format(grand) }} wages for {{ month }} to Finance?')">
+      {{ 'Re-post' if already_posted else 'Approve & Post' }} to Finance</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

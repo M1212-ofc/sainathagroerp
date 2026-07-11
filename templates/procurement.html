@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Procurement · Sainath Agro ERP{% endblock %}
+{% block content %}
+<div class="page-head"><h2>Procurement — Raw Material In</h2>
+  {% if can_access('procurement') %}<a href="{{ url_for('procurement_entry') }}" class="btn-primary">+ New Entry</a>{% endif %}</div>
+<form class="controls" method="get">
+  <div class="period-buttons">
+    <button name="period" value="month" class="{{ 'active' if period=='month' }}">Month</button>
+    <button name="period" value="30d" class="{{ 'active' if period=='30d' }}">30d</button>
+    <button name="period" value="year" class="{{ 'active' if period=='year' }}">Year</button>
+  </div>
+  <div class="custom-range"><input type="date" name="start" value="{{ start }}"><span>to</span><input type="date" name="end" value="{{ end }}"><button name="period" value="custom">Apply</button></div>
+</form>
+<p class="range-label">Total procurement cost: <b>₹{{ '{:,.2f}'.format(total) }}</b></p>
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>Date</th><th>Material</th><th>Supplier</th><th>Village</th><th>Transport</th><th>Vehicle</th><th>Qty KG</th><th>Rate</th><th>Freight</th><th>Total ₹</th><th>Paid</th><th></th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td>{{ r.entry_date }}</td><td>{{ r.material_name or '' }}</td><td>{{ r.supplier_name or '' }}</td>
+      <td>{{ r.village or '' }}</td><td><span class="chip">{{ r.transport or '' }}</span></td><td>{{ r.vehicle_no or '' }}</td>
+      <td>{{ r.quantity_kg }}</td><td>{{ r.rate_per_kg }}</td><td>{{ r.freight_cost }}</td>
+      <td><b>{{ '{:,.0f}'.format(r.total_cost or 0) }}</b></td><td>{{ r.paid }}</td>
+      <td class="row-actions">{% if can_access('procurement') %}<a href="{{ url_for('procurement_entry', edit=r.id) }}">Edit</a>
+        <form method="post" action="{{ url_for('procurement_delete', rid=r.id) }}" onsubmit="return confirm('Delete?')">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="link-danger">Delete</button></form>{% endif %}</td>
+    </tr>
+  {% else %}<tr><td colspan="12" class="empty">No procurement in range.</td></tr>{% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% set is_main = (variant == 'main') %}
+{% block title %}{{ 'Main' if is_main else 'Production' }} Dashboard · Sainath Agro ERP{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h2>{{ 'Main Dashboard' if is_main else 'Production Dashboard' }}</h2>
+    <div class="range-label" id="rangeLabel"></div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button id="editDashBtn" class="btn-edit-dash">✎ Edit</button>
+    <div class="period-buttons" id="shiftBtns">
+      <button data-shift="combined" class="active">Combined</button>
+      <button data-shift="day">Day</button>
+      <button data-shift="night">Night</button>
+    </div>
+    <div class="period-buttons" id="periodBtns">
+      <button data-period="day">Today</button>
+      <button data-period="week">Week</button>
+      <button data-period="month">Month</button>
+      <button data-period="7d" class="active">7d</button>
+      <button data-period="30d">30d</button>
+      <button data-period="year">Year</button>
+      <button data-period="custom">Custom</button>
+    </div>
+    <div class="custom-range" id="customRange" style="display:none">
+      <input type="date" id="startDate"><span>to</span><input type="date" id="endDate">
+      <button id="applyCustom">Apply</button>
+    </div>
+  </div>
+</div>
+
+<div id="lowStockBanner" class="lowstock-banner" style="display:none"></div>
+
+<div class="eff-strip" id="effStrip">
+  <div class="eff"><span class="eff-l">Yield %</span><span class="eff-v" id="eYield">–</span></div>
+  <div class="eff"><span class="eff-l">Waste %</span><span class="eff-v" id="eWaste">–</span></div>
+  <div class="eff"><span class="eff-l">Output / power unit</span><span class="eff-v" id="eOPU">–</span></div>
+  <div class="eff" id="effCPK" style="display:none"><span class="eff-l">Power cost / kg</span><span class="eff-v" id="eCPK">–</span></div>
+</div>
+
+<!-- BENTO KPI GRID -->
+<section class="bento">
+  <div class="bento-card hero" data-metric="crushing">
+    <div class="bento-lbl">Crushing Output</div>
+    <div class="bento-hero-val" id="kCrush">–<span class="u"> kg</span></div>
+    <div class="bento-badge" id="tCrush"></div>
+    <svg class="hero-spark" id="heroSpark" viewBox="0 0 400 90" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="bento-card" data-metric="consumption">
+    <div class="bento-badge-tr" id="tUnits"></div>
+    <div class="bento-lbl">MGVCL Units</div>
+    <div class="bento-val" id="kUnits">–</div>
+    <svg class="mini-spark" id="sparkUnits" viewBox="0 0 120 32" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="bento-card" data-metric="input">
+    <div class="bento-badge-tr" id="tInput"></div>
+    <div class="bento-lbl">Input KG</div>
+    <div class="bento-val" id="kInput">–</div>
+    <svg class="mini-spark" id="sparkInput" viewBox="0 0 120 32" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="bento-card" data-metric="cleaning">
+    <div class="bento-badge-tr" id="tClean"></div>
+    <div class="bento-lbl">Cleaning KG</div>
+    <div class="bento-val" id="kClean">–</div>
+    <svg class="mini-spark" id="sparkClean" viewBox="0 0 120 32" preserveAspectRatio="none"></svg>
+  </div>
+
+  <div class="bento-card" data-metric="waste">
+    <div class="bento-badge-tr" id="tWaste"></div>
+    <div class="bento-lbl">Waste KG</div>
+    <div class="bento-val" id="kWaste">–</div>
+    <svg class="mini-spark" id="sparkWaste" viewBox="0 0 120 32" preserveAspectRatio="none"></svg>
+  </div>
+
+  {% if is_main %}
+  <div class="bento-card wide2" data-metric="profit">
+    <div class="bento-lbl">Profit (₹)</div>
+    <div class="bento-val" id="kProfit">–</div>
+    <div class="bento-sub"><span id="kSales">–</span> sales · <span id="kExport">–</span> exports · <span id="kIncome">–</span> in · <span id="kExpense">–</span> out</div>
+  </div>
+  {% endif %}
+</section>
+
+<div id="editBar" class="edit-bar" style="display:none">
+  <span>Drag charts to reorder · resize/hide with buttons · </span>
+  <button id="addWidgetBtn" class="btn-primary" style="padding:6px 14px">+ Add Widget</button>
+  <button id="saveDashBtn" class="btn-primary" style="padding:6px 14px">Save Layout</button>
+  <button id="resetDashBtn" class="btn-cancel" style="padding:6px 14px">Reset</button>
+</div>
+
+<section class="chart-grid" id="chartGrid"></section>
+
+<div class="modal" id="modal-widget"><div class="modal-card">
+  <h3>Add Widget</h3>
+  <label>Metric<select id="wMetric"></select></label>
+  <label>Chart Type<select id="wType">
+    <option value="auto">Auto (recommended)</option>
+    <option value="bar">Bar</option><option value="line">Line</option><option value="doughnut">Doughnut</option>
+  </select></label>
+  <label>Size<select id="wSize"><option value="small">Small (half width)</option><option value="large">Large (full width)</option></select></label>
+  <div class="form-actions"><button type="button" class="btn-primary" onclick="addWidget()">Add</button><button type="button" class="btn-cancel" onclick="document.getElementById('modal-widget').style.display='none'">Cancel</button></div>
+</div></div>
+
+<script>window.DASH_MAIN = {{ 'true' if is_main else 'false' }};window.DASH_VARIANT="{{ 'main' if is_main else 'production' }}";</script>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='dashboard.js') }}"></script>{% endblock %}

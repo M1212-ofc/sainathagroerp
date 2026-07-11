@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}Sainath Agro ERP{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();</script>
+  <script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+</head>
+<body>
+{% if user %}
+<button class="menu-btn" id="menuBtn" aria-label="Menu">☰</button>
+<button class="theme-toggle" id="themeToggle" aria-label="Toggle theme"><span class="knob" id="themeKnob">☀</span></button>
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+<div class="layout">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <span class="logo">🌾</span>
+      <div><b>SAINATH AGRO</b><small>ERP</small></div>
+    </div>
+    <nav>
+      {% if can_access('dash_main', False) %}<a href="{{ url_for('dashboard_main') }}" class="{{ 'active' if request.endpoint=='dashboard_main' }}">📊 Main Dashboard</a>{% endif %}
+      {% if can_access('dash_production', False) %}<a href="{{ url_for('dashboard_production') }}" class="{{ 'active' if request.endpoint=='dashboard_production' }}">🏭 Production Dashboard</a>{% endif %}
+      {% if can_access('production', False) %}<a href="{{ url_for('production_list') }}" class="{{ 'active' if 'production' in request.endpoint }}">🏭 Production</a>{% endif %}
+      {% if can_access('procurement', False) %}<a href="{{ url_for('procurement_list') }}" class="{{ 'active' if 'procurement' in request.endpoint }}">🚜 Procurement</a>{% endif %}
+      {% if can_access('inventory', False) %}<a href="{{ url_for('inventory') }}" class="{{ 'active' if 'inventory' in request.endpoint }}">📦 Inventory</a>{% endif %}
+      {% if can_access('sales', False) %}<a href="{{ url_for('sales_list') }}" class="{{ 'active' if 'sales' in request.endpoint }}">🧾 Sales &amp; Export</a>{% endif %}
+      {% if can_access('waste', False) %}<a href="{{ url_for('waste_page') }}" class="{{ 'active' if 'waste' in request.endpoint }}">♻️ Waste</a>{% endif %}
+      {% if can_access('finance', False) %}<a href="{{ url_for('finance_page') }}" class="{{ 'active' if request.endpoint=='finance_page' }}">💰 Finance</a>{% endif %}
+      {% if can_access('finance', False) %}<a href="{{ url_for('payroll') }}" class="{{ 'active' if request.endpoint=='payroll' }}">🧾 Payroll</a>{% endif %}
+      {% if can_access('finance', False) %}<a href="{{ url_for('electricity') }}" class="{{ 'active' if request.endpoint=='electricity' }}">⚡ Electricity</a>{% endif %}
+      {% if can_access('masters', False) %}<a href="{{ url_for('masters') }}" class="{{ 'active' if request.endpoint=='masters' }}">🗂️ Masters</a>{% endif %}
+      {% if user.role == 'owner' %}<a href="{{ url_for('users') }}" class="{{ 'active' if request.endpoint=='users' }}">👥 Users</a>{% endif %}
+      {% if user.role == 'owner' %}<a href="{{ url_for('backup_page') }}" class="{{ 'active' if request.endpoint=='backup_page' }}">💾 Backup</a>{% endif %}
+    </nav>
+    <div class="user-box">
+      <div class="avatar">{{ (user.full_name or user.username)[0]|upper }}</div>
+      <div><b>{{ user.full_name or user.username }}</b><small>{{ user.role|capitalize }}</small></div>
+      <a href="{{ url_for('logout') }}" class="logout" title="Logout">⎋</a>
+    </div>
+  </aside>
+
+  <main class="content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+  {% block auth %}{% endblock %}
+{% endif %}
+{% block scripts %}{% endblock %}
+{% if user %}
+<script>
+(function(){
+  var root=document.documentElement, knob=document.getElementById('themeKnob');
+  function apply(t){root.setAttribute('data-theme',t);localStorage.setItem('theme',t);
+    if(knob)knob.textContent=t==='dark'?'🌙':'☀';}
+  apply(localStorage.getItem('theme')||'light');
+  var tt=document.getElementById('themeToggle');
+  if(tt)tt.addEventListener('click',function(){
+    apply(root.getAttribute('data-theme')==='dark'?'light':'dark');});
+  var mb=document.getElementById('menuBtn'), sb=document.getElementById('sidebar'),
+      bd=document.getElementById('sidebarBackdrop');
+  function toggleMenu(open){if(sb)sb.classList.toggle('open',open);if(bd)bd.classList.toggle('show',open);}
+  if(mb)mb.addEventListener('click',function(){toggleMenu(!sb.classList.contains('open'));});
+  if(bd)bd.addEventListener('click',function(){toggleMenu(false);});
+  if(sb)sb.querySelectorAll('a').forEach(function(a){a.addEventListener('click',function(){toggleMenu(false);});});
+})();
+</script>
+{% endif %}
+</body>
+</html>

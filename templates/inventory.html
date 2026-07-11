@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Inventory · Sainath Agro ERP{% endblock %}
+{% block content %}
+<h2 class="page-title">Inventory</h2>
+<div class="two-col">
+  <div class="panel"><h3>📥 Raw Material Stock</h3>
+    <table class="data-table"><thead><tr><th>Material</th><th>Qty (KG)</th><th>Days left</th></tr></thead><tbody>
+      {% for i in raw %}<tr><td>{{ i.item_name }}</td><td><b>{{ '{:,.1f}'.format(i.qty) }}</b></td>
+        <td>{% if i.days_left is not none %}<span class="{{ 'neg' if i.days_left < 7 else '' }}">{{ i.days_left }} days</span>{% else %}—{% endif %}</td></tr>
+      {% else %}<tr><td colspan="3" class="empty">No raw stock.</td></tr>{% endfor %}</tbody></table>
+  </div>
+  <div class="panel"><h3>📤 Finished Goods Stock</h3>
+    <table class="data-table"><thead><tr><th>Product</th><th>Qty (KG)</th></tr></thead><tbody>
+      {% for i in finished %}<tr><td>{{ i.item_name }}</td><td><b>{{ '{:,.1f}'.format(i.qty) }}</b></td></tr>
+      {% else %}<tr><td colspan="2" class="empty">No finished stock.</td></tr>{% endfor %}</tbody></table>
+  </div>
+</div>
+
+{% if can_access('inventory') %}
+<fieldset class="entry-form" style="margin-top:20px"><legend>Manual Stock Adjustment</legend>
+<form method="post" action="{{ url_for('inventory_adjust') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="grid3">
+    <label>Date<input type="date" name="move_date" value=""></label>
+    <label>Type<select name="item_type"><option value="raw">Raw</option><option value="finished">Finished</option></select></label>
+    <label>Item name<input type="text" name="item_name" required></label>
+    <label>Direction<select name="direction"><option value="in">Add (in)</option><option value="out">Remove (out)</option></select></label>
+    <label>Qty (KG)<input type="number" step="any" name="qty_kg" required></label>
+    <label>Note<input type="text" name="note"></label>
+  </div>
+  <div class="form-actions"><button class="btn-primary">Apply Adjustment</button></div>
+</form></fieldset>
+{% endif %}
+
+<h3 style="margin-top:24px">Recent Movements</h3>
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>Date</th><th>Type</th><th>Item</th><th>Qty</th><th>Source</th><th>Note</th></tr></thead>
+  <tbody>{% for m in moves %}<tr><td>{{ m.move_date }}</td><td>{{ m.item_type }}</td><td>{{ m.item_name }}</td>
+    <td class="{{ 'pos' if m.qty_kg>=0 else 'neg' }}">{{ '{:+,.1f}'.format(m.qty_kg) }}</td>
+    <td><span class="chip">{{ m.source }}</span></td><td>{{ m.note or '' }}</td></tr>
+  {% else %}<tr><td colspan="6" class="empty">No movements.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}

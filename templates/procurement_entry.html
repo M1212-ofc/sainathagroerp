@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Procurement Entry{% endblock %}
+{% block content %}
+<h2 class="page-title">{{ 'Edit' if row else 'New' }} Procurement</h2>
+<form method="post" class="entry-form" action="{{ url_for('procurement_entry') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% if row %}<input type="hidden" name="proc_id" value="{{ row.id }}">{% endif %}
+  <fieldset><legend>Raw Material Arrival</legend>
+    <div class="grid3">
+      <label>Date<input type="date" name="entry_date" required value="{{ row.entry_date if row else today }}"></label>
+      <label>Raw Material<select name="raw_material_id" id="rawSelect">{% for m in materials %}<option value="{{ m.id }}" {{ 'selected' if row and row.raw_material_id==m.id }}>{{ m.name }}</option>{% endfor %}</select><a class="add-link" href="#" onclick="openAdd('raw');return false;">+ Add new material</a></label>
+      <label>Supplier<select name="supplier_id" id="supSelect"><option value="">— none —</option>{% for s in suppliers %}<option value="{{ s.id }}" {{ 'selected' if row and row.supplier_id==s.id }}>{{ s.company_name or s.name }} {{ '('~s.village~')' if s.village }}</option>{% endfor %}</select><a class="add-link" href="#" onclick="openAdd('supplier');return false;">+ Add new supplier</a></label>
+      <label>Village<input type="text" name="village" value="{{ row.village if row else '' }}"></label>
+      <label>Transport<select name="transport">
+        {% for t in ['tractor','truck','container','pickup','other'] %}<option value="{{ t }}" {{ 'selected' if row and row.transport==t }}>{{ t|capitalize }}</option>{% endfor %}</select></label>
+      <label>Vehicle No.<input type="text" name="vehicle_no" value="{{ row.vehicle_no if row else '' }}"></label>
+      <label>Quantity (KG)<input type="number" step="any" name="quantity_kg" id="pq" value="{{ row.quantity_kg if row else '' }}"></label>
+      <label>Rate / KG (₹)<input type="number" step="any" name="rate_per_kg" id="pr" value="{{ row.rate_per_kg if row else '' }}"></label>
+      <label>Freight (₹)<input type="number" step="any" name="freight_cost" id="pf" value="{{ row.freight_cost if row else '' }}"></label>
+      <label>Total (₹) <input type="number" step="any" id="pt" value="{{ row.total_cost if row else '' }}" readonly></label>
+      <label>Paid (₹)<input type="number" step="any" name="paid" value="{{ row.paid if row else '' }}"></label>
+    </div>
+    <label>Notes<textarea name="notes" rows="2">{{ row.notes if row else '' }}</textarea></label>
+  </fieldset>
+  <div class="form-actions"><button class="btn-primary">Save</button><a href="{{ url_for('procurement_list') }}" class="btn-cancel">Cancel</a></div>
+</form>
+<script>
+const q=document.getElementById('pq'),r=document.getElementById('pr'),f=document.getElementById('pf'),t=document.getElementById('pt');
+function calc(){const v=(parseFloat(q.value)||0)*(parseFloat(r.value)||0)+(parseFloat(f.value)||0);t.value=v.toFixed(2);}
+[q,r,f].forEach(el=>el.addEventListener('input',calc));
+
+// ---- inline quick add ----
+function openAdd(kind){document.getElementById('modal-'+kind).style.display='flex';}
+function closeAdd(kind){document.getElementById('modal-'+kind).style.display='none';}
+async function submitQuick(kind, selectId){
+  const box=document.getElementById('modal-'+kind);
+  const data=new FormData();
+  box.querySelectorAll('[data-f]').forEach(el=>data.append(el.dataset.f, el.value));
+  data.append('_csrf',document.querySelector('meta[name=csrf-token]').content);const res=await fetch('/api/quick_add/'+kind,{method:'POST',body:data});
+  const j=await res.json();
+  if(!j.ok){alert(j.error||'Error');return;}
+  const sel=document.getElementById(selectId);
+  const opt=document.createElement('option');opt.value=j.id;opt.textContent=j.name;opt.selected=true;
+  sel.appendChild(opt);closeAdd(kind);
+}
+</script>
+
+<div class="modal" id="modal-supplier"><div class="modal-card">
+  <h3>Add Supplier</h3>
+  <label>Company Name *<input data-f="company_name" required></label>
+  <label>Contact Person<input data-f="contact_name"></label>
+  <div class="grid2">
+    <label>Country Code<select data-f="phone_cc">{% for code,cn in dial_codes %}<option value="{{ code }}">{{ code }}</option>{% endfor %}</select></label>
+    <label>Phone (10 digit)<input data-f="phone" maxlength="10" pattern="[0-9]{10}"></label>
+  </div>
+  <label>Village<input data-f="village"></label>
+  <label>GST (optional)<input data-f="gst_no" maxlength="15" style="text-transform:uppercase"></label>
+  <div class="form-actions"><button type="button" class="btn-primary" onclick="submitQuick('supplier','supSelect')">Save</button><button type="button" class="btn-cancel" onclick="closeAdd('supplier')">Cancel</button></div>
+</div></div>
+
+<div class="modal" id="modal-raw"><div class="modal-card">
+  <h3>Add Raw Material</h3>
+  <label>Name *<input data-f="name" required></label>
+  <label>Unit<input data-f="unit" value="kg"></label>
+  <div class="form-actions"><button type="button" class="btn-primary" onclick="submitQuick('raw','rawSelect')">Save</button><button type="button" class="btn-cancel" onclick="closeAdd('raw')">Cancel</button></div>
+</div></div>
+{% endblock %}

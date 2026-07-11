@@ -1,0 +1,22 @@
+# Database (lives only on the server, never in git)
+sainath_erp.db
+sainath_erp.db-wal
+sainath_erp.db-shm
+*.db
+*.db-wal
+*.db-shm
+
+# Backups
+backups/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

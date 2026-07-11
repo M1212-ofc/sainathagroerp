@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Finance · Sainath Agro ERP{% endblock %}
+{% block content %}
+<div class="page-head"><h2>Finance — Profit &amp; Loss</h2>
+  <a class="btn-export" href="{{ url_for('export_csv', what='finance', period='custom', start=start, end=end) }}">⬇ CSV</a></div>
+<form class="controls" method="get">
+  <div class="period-buttons">
+    <button name="period" value="month" class="{{ 'active' if period=='month' }}">Month</button>
+    <button name="period" value="30d" class="{{ 'active' if period=='30d' }}">30d</button>
+    <button name="period" value="year" class="{{ 'active' if period=='year' }}">Year</button>
+  </div>
+  <div class="custom-range"><input type="date" name="start" value="{{ start }}"><span>to</span><input type="date" name="end" value="{{ end }}"><button name="period" value="custom">Apply</button></div>
+</form>
+<section class="kpi-grid">
+  <div class="kpi accent-green"><span class="kpi-label">Income</span><span class="kpi-val">₹{{ '{:,.0f}'.format(summary.income) }}</span></div>
+  <div class="kpi accent-red"><span class="kpi-label">Expense</span><span class="kpi-val">₹{{ '{:,.0f}'.format(summary.expense) }}</span></div>
+  <div class="kpi accent-profit"><span class="kpi-label">Profit</span><span class="kpi-val">₹{{ '{:,.0f}'.format(summary.profit) }}</span></div>
+  {% if metrics.expense_ratio is not none %}<div class="kpi"><span class="kpi-label">Expense Ratio</span><span class="kpi-val">{{ metrics.expense_ratio }}%</span></div>{% endif %}
+  {% if metrics.avg_price_per_kg is not none %}<div class="kpi"><span class="kpi-label">Avg Price / kg</span><span class="kpi-val">₹{{ metrics.avg_price_per_kg }}</span></div>{% endif %}
+  {% if metrics.margin_per_kg is not none %}<div class="kpi"><span class="kpi-label">Margin / kg</span><span class="kpi-val">₹{{ metrics.margin_per_kg }}</span></div>{% endif %}
+</section>
+<div class="two-col" style="margin:18px 0">
+  <div class="chart-card"><h3>Income vs Expense</h3><canvas id="cFin"></canvas></div>
+  <div class="chart-card"><h3>Expenses by Category</h3><canvas id="cCat"></canvas></div>
+</div>
+{% if can_access('finance') %}
+<fieldset class="entry-form"><legend>Add Manual Entry</legend>
+<form method="post" action="{{ url_for('finance_page') }}">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="grid3">
+    <label>Date<input type="date" name="entry_date" required value=""></label>
+    <label>Direction<select name="direction"><option value="income">Income</option><option value="expense">Expense</option></select></label>
+    <label>Category<select name="category"><option>salary</option><option>electricity</option><option>maintenance</option><option>freight</option><option>rent</option><option>fuel</option><option>other</option></select></label>
+    <label>Amount (₹)<input type="number" step="any" name="amount_inr" required></label>
+    <label style="grid-column:span 2">Description<input type="text" name="description"></label>
+  </div>
+  <div class="form-actions"><button class="btn-primary">Add Entry</button></div>
+</form></fieldset>
+{% endif %}
+<h3 style="margin-top:20px">Ledger</h3>
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>Date</th><th>Dir</th><th>Category</th><th>Amount ₹</th><th>Source</th><th>Description</th></tr></thead>
+  <tbody>{% for r in rows %}<tr><td>{{ r.entry_date }}</td>
+    <td><span class="badge {{ 'day' if r.direction=='income' else 'red' }}">{{ r.direction }}</span></td>
+    <td>{{ r.category }}</td><td class="{{ 'pos' if r.direction=='income' else 'neg' }}">{{ '{:,.0f}'.format(r.amount_inr) }}</td>
+    <td><span class="chip">{{ r.source }}</span></td><td>{{ r.description or '' }}</td></tr>
+  {% else %}<tr><td colspan="6" class="empty">No entries.</td></tr>{% endfor %}</tbody>
+</table></div>
+<script>
+fetch('/api/finance?period={{ period }}&start={{ start }}&end={{ end }}').then(r=>r.json()).then(d=>{
+  new Chart(document.getElementById('cFin'),{type:'bar',data:{labels:d.months,datasets:[
+    {label:'Income',data:d.income,backgroundColor:'#22c55e',borderRadius:6},
+    {label:'Expense',data:d.expense,backgroundColor:'#f87171',borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});
+  const pal=['#22c55e','#0891b2','#f59e0b','#a78bfa','#f87171','#6366f1','#14b8a6','#eab308','#ec4899'];
+  if(d.categories&&d.categories.length){
+    new Chart(document.getElementById('cCat'),{type:'doughnut',data:{
+      labels:d.categories.map(c=>c.name),
+      datasets:[{data:d.categories.map(c=>c.amount),backgroundColor:pal}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right'}}}});
+  }
+});
+</script>
+{% endblock %}

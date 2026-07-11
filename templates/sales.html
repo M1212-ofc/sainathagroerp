@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Sales & Export · Sainath Agro ERP{% endblock %}
+{% block content %}
+<div class="page-head"><h2>Sales &amp; Export</h2>
+  {% if can_access('sales') %}<div>
+    <a href="{{ url_for('sales_entry', kind='domestic') }}" class="btn-primary">+ Domestic Sale</a>
+    <a href="{{ url_for('sales_entry', kind='export') }}" class="btn-primary" style="background:var(--blue)">+ Export</a>
+  </div>{% endif %}</div>
+<form class="controls" method="get">
+  <div class="period-buttons">
+    <button name="period" value="month" class="{{ 'active' if period=='month' }}">Month</button>
+    <button name="period" value="30d" class="{{ 'active' if period=='30d' }}">30d</button>
+    <button name="period" value="year" class="{{ 'active' if period=='year' }}">Year</button>
+  </div>
+  <select name="kind" onchange="this.form.submit()">
+    <option value="all" {{ 'selected' if kind=='all' }}>All</option>
+    <option value="domestic" {{ 'selected' if kind=='domestic' }}>Domestic</option>
+    <option value="export" {{ 'selected' if kind=='export' }}>Export</option>
+  </select>
+  <a class="btn-export" href="{{ url_for('export_csv', what='sales', period='custom', start=start, end=end) }}">⬇ CSV</a>
+</form>
+<p class="range-label">Total (INR): <b>₹{{ '{:,.2f}'.format(total_inr) }}</b></p>
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>Date</th><th>Kind</th><th>Customer</th><th>Product</th><th>Qty KG</th><th>Rate</th><th>Cur</th><th>Total</th><th>₹ INR</th><th>Invoice</th><th>Vehicle</th><th></th></tr></thead>
+  <tbody>{% for r in rows %}<tr>
+    <td>{{ r.sale_date }}</td><td><span class="badge {{ 'night' if r.kind=='export' else 'day' }}">{{ r.kind }}</span></td>
+    <td>{{ r.customer_name or '' }}</td><td>{{ r.product_name or '' }}</td><td>{{ r.quantity_kg }}</td>
+    <td>{{ r.rate }}</td><td>{{ r.currency }}</td><td>{{ '{:,.2f}'.format(r.total_amount or 0) }}</td>
+    <td><b>{{ '{:,.0f}'.format(r.total_inr or 0) }}</b></td><td>{{ r.invoice_no or '' }}</td><td>{{ r.vehicle_no or '' }}</td>
+    <td class="row-actions">{% if can_access('sales') %}<a href="{{ url_for('sales_entry', edit=r.id) }}">Edit</a>
+      <form method="post" action="{{ url_for('sales_delete', rid=r.id) }}" onsubmit="return confirm('Delete?')">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="link-danger">Delete</button></form>{% endif %}</td>
+  </tr>{% else %}<tr><td colspan="11" class="empty">No sales in range.</td></tr>{% endfor %}</tbody>
+</table></div>
+{% endblock %}
