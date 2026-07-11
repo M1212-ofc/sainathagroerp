@@ -594,7 +594,6 @@ def production_entry():
             db.execute("DELETE FROM production_lines WHERE report_id=?", (rid,))
             db.execute("DELETE FROM workers WHERE report_id=?", (rid,))
             logic.clear_source(db, "inventory_moves", "production", rid)
-            logic.clear_source(db, "finance", "machine", rid)
         else:
             cur = db.execute(
                 """INSERT INTO reports (report_date,shift,start_unit,close_unit,consumption,
@@ -654,52 +653,17 @@ def production_entry():
                 (f.get("report_date"), "production", "shift waste", waste_kg,
                  session.get("user_id")),
             )
-        # ---- #6: machine logs (per-machine output/units/labour/maintenance) ----
-        db.execute("DELETE FROM machine_logs WHERE report_id=?", (rid,))
-        m_id = f.getlist("machine_id")
-        m_name = f.getlist("machine_name")
-        m_out = f.getlist("machine_output")
-        m_units = f.getlist("machine_units")
-        m_lab = f.getlist("machine_labour")
-        m_maint = f.getlist("machine_maint")
-        for i in range(len(m_id)):
-            try:
-                mid = int(m_id[i]) if m_id[i].strip() else None
-            except (ValueError, IndexError):
-                mid = None
-            if not mid:
-                continue
-            out = float(m_out[i]) if i < len(m_out) and m_out[i].strip() else 0
-            un = float(m_units[i]) if i < len(m_units) and m_units[i].strip() else 0
-            lab = float(m_lab[i]) if i < len(m_lab) and m_lab[i].strip() else 0
-            mnt = float(m_maint[i]) if i < len(m_maint) and m_maint[i].strip() else 0
-            if out or un or lab or mnt:
-                db.execute(
-                    """INSERT INTO machine_logs (report_id,log_date,machine_id,machine_name,
-                       output_kg,units,labour_cost,maint_cost) VALUES (?,?,?,?,?,?,?,?)""",
-                    (rid, f.get("report_date"), mid,
-                     m_name[i] if i < len(m_name) else "", out, un, lab, mnt))
-                # post labour + maintenance to finance
-                if lab > 0:
-                    logic.post_finance(db, f.get("report_date"), "expense", "salary", lab,
-                                       description=f"Machine labour: {m_name[i] if i<len(m_name) else ''}",
-                                       source="machine", ref_id=rid, user_id=session.get("user_id"))
-                if mnt > 0:
-                    logic.post_finance(db, f.get("report_date"), "expense", "maintenance", mnt,
-                                       description=f"Machine maintenance: {m_name[i] if i<len(m_name) else ''}",
-                                       source="machine", ref_id=rid, user_id=session.get("user_id"))
         db.commit()
         flash("Production report saved (stock updated).", "ok")
         return redirect(url_for("production_list"))
 
     edit_id = request.args.get("edit")
     report = None
-    lines = workers = mlogs = []
+    lines = workers = []
     if edit_id:
         report = db.execute("SELECT * FROM reports WHERE id=?", (edit_id,)).fetchone()
         lines = db.execute("SELECT * FROM production_lines WHERE report_id=?", (edit_id,)).fetchall()
         workers = db.execute("SELECT * FROM workers WHERE report_id=? ORDER BY slno", (edit_id,)).fetchall()
-        mlogs = db.execute("SELECT * FROM machine_logs WHERE report_id=?", (edit_id,)).fetchall()
     lines_json = json.dumps([dict(category=l["category"], name=l["name"], theli=l["theli"],
                                   theli_weight=l["theli_weight"], total_kg=l["total_kg"]) for l in lines])
     workers_json = json.dumps([dict(slno=w["slno"], name=w["name"],
@@ -711,17 +675,106 @@ def production_entry():
     master_workers = db.execute("SELECT * FROM worker_master WHERE active=1 OR active IS NULL ORDER BY name").fetchall()
     master_workers_json = json.dumps([dict(id=w["id"], name=w["name"],
                                            default_hours=w["default_hours"]) for w in master_workers])
-    master_machines = db.execute("SELECT * FROM machine_master WHERE active=1 OR active IS NULL ORDER BY name").fetchall()
-    machines_json = json.dumps([dict(id=m["id"], name=m["name"], capacity_kg=m["capacity_kg"]) for m in master_machines])
-    mlogs_json = json.dumps([dict(machine_id=x["machine_id"], machine_name=x["machine_name"],
-                                  output_kg=x["output_kg"], units=x["units"],
-                                  labour_cost=x["labour_cost"], maint_cost=x["maint_cost"]) for x in mlogs])
     return render_template("production_entry.html", report=report,
                            materials=materials, master_workers=master_workers,
                            master_workers_json=master_workers_json,
-                           machines_json=machines_json, mlogs_json=mlogs_json,
                            lines_json=lines_json, workers_json=workers_json,
                            today=date.today().isoformat())
+
+
+@app.route("/production/machines", methods=["GET", "POST"])
+@require("production")
+def machine_production():
+    db = g.db
+    if request.method == "POST":
+        log_date = request.form.get("log_date") or date.today().isoformat()
+        m_id = request.form.getlist("machine_id")
+        m_name = request.form.getlist("machine_name")
+        m_out = request.form.getlist("machine_output")
+        m_units = request.form.getlist("machine_units")
+        m_lab = request.form.getlist("machine_labour")
+        m_maint = request.form.getlist("machine_maint")
+
+        date_key = int(log_date.replace("-", "") or 0)
+        db.execute("DELETE FROM machine_logs WHERE log_date=? AND report_id IS NULL", (log_date,))
+        logic.clear_source(db, "finance", "machine_production", date_key)
+
+        for i in range(len(m_id)):
+            try:
+                mid = int(m_id[i]) if m_id[i].strip() else None
+            except (ValueError, IndexError):
+                mid = None
+            if not mid:
+                continue
+            out = float(m_out[i]) if i < len(m_out) and m_out[i].strip() else 0
+            un = float(m_units[i]) if i < len(m_units) and m_units[i].strip() else 0
+            lab = float(m_lab[i]) if i < len(m_lab) and m_lab[i].strip() else 0
+            mnt = float(m_maint[i]) if i < len(m_maint) and m_maint[i].strip() else 0
+            name = m_name[i] if i < len(m_name) else ""
+            if out or un or lab or mnt:
+                db.execute(
+                    """INSERT INTO machine_logs (report_id,log_date,machine_id,machine_name,
+                       output_kg,units,labour_cost,maint_cost) VALUES (NULL,?,?,?,?,?,?,?)""",
+                    (log_date, mid, name, out, un, lab, mnt))
+                if lab > 0:
+                    logic.post_finance(db, log_date, "expense", "salary", lab,
+                                       description=f"Machine labour: {name}",
+                                       source="machine_production", ref_id=date_key,
+                                       user_id=session.get("user_id"))
+                if mnt > 0:
+                    logic.post_finance(db, log_date, "expense", "maintenance", mnt,
+                                       description=f"Machine maintenance: {name}",
+                                       source="machine_production", ref_id=date_key,
+                                       user_id=session.get("user_id"))
+        db.commit()
+        flash("Machine production saved.", "ok")
+        return redirect(url_for("machine_production", date=log_date))
+
+    sel_date = request.args.get("date") or date.today().isoformat()
+    machines = db.execute(
+        "SELECT * FROM machine_master WHERE active=1 OR active IS NULL ORDER BY name"
+    ).fetchall()
+    total_capacity = sum((m["capacity_kg"] or 0) for m in machines)
+
+    existing = db.execute(
+        "SELECT * FROM machine_logs WHERE log_date=? AND report_id IS NULL", (sel_date,)
+    ).fetchall()
+    existing_map = {x["machine_id"]: x for x in existing}
+
+    # Suggested total output = that date's crushing+cleaning production (from daily reports), if any
+    suggested_row = db.execute(
+        "SELECT COALESCE(SUM(crushing_total_kg+cleaning_total_kg),0) s FROM reports WHERE report_date=?",
+        (sel_date,),
+    ).fetchone()
+    suggested_output = round(suggested_row["s"] or 0, 2)
+    existing_total = round(sum((x["output_kg"] or 0) for x in existing), 2)
+    total_output = existing_total if existing else suggested_output
+
+    machines_data = []
+    for m in machines:
+        ex = existing_map.get(m["id"])
+        machines_data.append(dict(
+            id=m["id"], name=m["name"], capacity_kg=m["capacity_kg"] or 0,
+            output_kg=(ex["output_kg"] if ex else None),
+            units=(ex["units"] if ex else None),
+            labour_cost=(ex["labour_cost"] if ex else None),
+            maint_cost=(ex["maint_cost"] if ex else None),
+        ))
+    machines_json = json.dumps(machines_data)
+
+    history = db.execute(
+        """SELECT log_date, COUNT(DISTINCT machine_id) n_machines,
+                  SUM(output_kg) out_kg, SUM(units) units,
+                  SUM(labour_cost) lab, SUM(maint_cost) maint
+           FROM machine_logs WHERE report_id IS NULL
+           GROUP BY log_date ORDER BY log_date DESC LIMIT 30"""
+    ).fetchall()
+
+    return render_template(
+        "machine_production.html", sel_date=sel_date, machines_json=machines_json,
+        total_capacity=total_capacity, suggested_output=suggested_output,
+        total_output=total_output, history=history, today=date.today().isoformat(),
+    )
 
 
 @app.route("/production/delete/<int:rid>", methods=["POST"])

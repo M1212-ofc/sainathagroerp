@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Machine Production · Sainath Agro ERP{% endblock %}
+{% block content %}
+<h2 class="page-title">Machine Production &amp; Costs (મશીન)</h2>
+<p class="range-label">Output is auto-split across machines by their rated capacity (set in Masters → Machines). Adjust any row if the real split differed.</p>
+
+<form method="post" class="entry-form" action="{{ url_for('machine_production') }}" id="machineForm">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <fieldset><legend>Day</legend>
+    <div class="grid3">
+      <label>Date<input type="date" name="log_date" id="logDate" value="{{ sel_date }}" required></label>
+      <label>Total Output KG <span class="auto-badge">editable</span>
+        <input type="number" step="any" id="totalOutput" value="{{ total_output if total_output else '' }}">
+        {% if suggested_output %}<small>Suggested from today's production report: {{ suggested_output }} kg</small>{% endif %}
+      </label>
+      <label>Total rated capacity<input type="text" value="{{ total_capacity }} kg/day" readonly style="background:transparent;border:none"></label>
+    </div>
+  </fieldset>
+
+  {% if not machines_json or machines_json == '[]' %}
+  <div class="stock-hint neg">No active machines found. Add machines (with their capacity in KG) under <a href="{{ url_for('masters', tab='machines') }}">Masters → Machines</a> first.</div>
+  {% else %}
+  <fieldset><legend>Per-machine split</legend>
+    <table class="lines-table">
+      <thead><tr><th>Machine</th><th style="width:90px">Capacity</th><th style="width:70px">Share</th><th style="width:110px">Output kg</th><th style="width:90px">Units</th><th style="width:100px">Labour ₹</th><th style="width:110px">Maint. ₹</th><th style="width:90px">Cost/kg</th></tr></thead>
+      <tbody id="machinesBody"></tbody>
+      <tfoot><tr class="totals-row"><td>Total</td><td></td><td></td><td id="sumOutput">0</td><td id="sumUnits">0</td><td id="sumLabour">0</td><td id="sumMaint">0</td><td></td></tr></tfoot>
+    </table>
+    <small style="margin-top:6px">Output kg auto-fills from Total Output × each machine's capacity share — edit any cell to override just that machine. Units/Labour/Maintenance are entered manually. Labour &amp; maintenance post to Finance.</small>
+  </fieldset>
+  {% endif %}
+
+  <div class="form-actions"><button class="btn-primary">Save</button></div>
+</form>
+
+<script>const MACHINES={{ machines_json|safe }};const TOTAL_OUTPUT={{ (total_output or 0)|tojson }};</script>
+<script>
+(function(){
+  const mbody=document.getElementById("machinesBody");
+  if(!mbody)return;
+  const totalOutputInput=document.getElementById("totalOutput");
+  const totalCapacity=MACHINES.reduce((s,m)=>s+(parseFloat(m.capacity_kg)||0),0);
+
+  function addRow(m){
+    const share=totalCapacity>0?(parseFloat(m.capacity_kg)||0)/totalCapacity:0;
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${(m.name||'').replace(/</g,'&lt;')}<input type="hidden" name="machine_id" value="${m.id}"><input type="hidden" name="machine_name" value="${(m.name||'').replace(/"/g,'&quot;')}"></td>
+      <td>${m.capacity_kg||0} kg</td>
+      <td class="mp-share">${(share*100).toFixed(0)}%</td>
+      <td><input type="number" step="any" name="machine_output" class="mp-out" value="${m.output_kg!==null&&m.output_kg!==undefined?m.output_kg:''}"></td>
+      <td><input type="number" step="any" name="machine_units" value="${m.units!==null&&m.units!==undefined?m.units:''}"></td>
+      <td><input type="number" step="any" name="machine_labour" class="mp-lab" value="${m.labour_cost!==null&&m.labour_cost!==undefined?m.labour_cost:''}"></td>
+      <td><input type="number" step="any" name="machine_maint" class="mp-mnt" value="${m.maint_cost!==null&&m.maint_cost!==undefined?m.maint_cost:''}"></td>
+      <td><span class="mp-cpk" style="font-weight:600;color:var(--primary)">—</span></td>`;
+    mbody.appendChild(tr);
+    tr.dataset.share=share;
+    const out=tr.querySelector(".mp-out"),lab=tr.querySelector(".mp-lab"),mnt=tr.querySelector(".mp-mnt"),cpk=tr.querySelector(".mp-cpk");
+    if(m.output_kg!==null&&m.output_kg!==undefined&&m.output_kg!=="")out.dataset.touched="1"; // saved value: don't silently overwrite
+    function calcCpk(){const o=parseFloat(out.value)||0,l=parseFloat(lab.value)||0,mm=parseFloat(mnt.value)||0;
+      cpk.textContent=o>0?('₹'+((l+mm)/o).toFixed(2)):'—';}
+    out.addEventListener("input",()=>{if(!window._mpApplying)out.dataset.touched="1";calcCpk();recalcSums();});
+    lab.addEventListener("input",()=>{calcCpk();recalcSums();});
+    mnt.addEventListener("input",()=>{calcCpk();recalcSums();});
+    tr.querySelector('input[name=machine_units]').addEventListener("input",recalcSums);
+    calcCpk();
+  }
+  MACHINES.forEach(addRow);
+
+  function applySplit(){
+    const total=parseFloat(totalOutputInput.value)||0;
+    window._mpApplying=true;
+    mbody.querySelectorAll("tr").forEach(tr=>{
+      const out=tr.querySelector(".mp-out");
+      if(out.dataset.touched)return; // don't overwrite a manual edit
+      const share=parseFloat(tr.dataset.share)||0;
+      out.value=total>0?+(total*share).toFixed(2):"";
+      out.dispatchEvent(new Event("input"));
+    });
+    window._mpApplying=false;
+  }
+  function recalcSums(){
+    let so=0,su=0,sl=0,sm=0;
+    mbody.querySelectorAll("tr").forEach(tr=>{
+      so+=parseFloat(tr.querySelector(".mp-out").value)||0;
+      su+=parseFloat(tr.querySelector('input[name=machine_units]').value)||0;
+      sl+=parseFloat(tr.querySelector(".mp-lab").value)||0;
+      sm+=parseFloat(tr.querySelector(".mp-mnt").value)||0;
+    });
+    document.getElementById("sumOutput").textContent=+so.toFixed(2);
+    document.getElementById("sumUnits").textContent=+su.toFixed(2);
+    document.getElementById("sumLabour").textContent=+sl.toFixed(2);
+    document.getElementById("sumMaint").textContent=+sm.toFixed(2);
+  }
+  totalOutputInput.addEventListener("input",applySplit);
+  if(TOTAL_OUTPUT>0)applySplit();
+  recalcSums();
+
+  // reloading the page for a different date
+  document.getElementById("logDate").addEventListener("change",function(){
+    window.location.href="{{ url_for('machine_production') }}?date="+this.value;
+  });
+})();
+</script>
+
+<h3 class="page-title" style="font-size:16px;margin-top:28px">Recent history</h3>
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>Date</th><th>Machines</th><th>Output kg</th><th>Units</th><th>Labour ₹</th><th>Maint. ₹</th><th></th></tr></thead>
+  <tbody>
+  {% for r in history %}
+    <tr><td>{{ r.log_date }}</td><td>{{ r.n_machines }}</td><td>{{ '%.1f'|format(r.out_kg or 0) }}</td>
+      <td>{{ '%.1f'|format(r.units or 0) }}</td><td>₹{{ '%.0f'|format(r.lab or 0) }}</td><td>₹{{ '%.0f'|format(r.maint or 0) }}</td>
+      <td><a href="{{ url_for('machine_production', date=r.log_date) }}">Edit</a></td></tr>
+  {% else %}
+    <tr><td colspan="7" style="text-align:center;color:var(--muted)">No machine production logged yet.</td></tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endblock %}

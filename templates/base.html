@@ -24,6 +24,7 @@
       {% if can_access('dash_main', False) %}<a href="{{ url_for('dashboard_main') }}" class="{{ 'active' if request.endpoint=='dashboard_main' }}">📊 Main Dashboard</a>{% endif %}
       {% if can_access('dash_production', False) %}<a href="{{ url_for('dashboard_production') }}" class="{{ 'active' if request.endpoint=='dashboard_production' }}">🏭 Production Dashboard</a>{% endif %}
       {% if can_access('production', False) %}<a href="{{ url_for('production_list') }}" class="{{ 'active' if 'production' in request.endpoint }}">🏭 Production</a>{% endif %}
+      {% if can_access('production', False) %}<a href="{{ url_for('machine_production') }}" class="{{ 'active' if request.endpoint=='machine_production' }}">⚙️ Machine Production</a>{% endif %}
       {% if can_access('procurement', False) %}<a href="{{ url_for('procurement_list') }}" class="{{ 'active' if 'procurement' in request.endpoint }}">🚜 Procurement</a>{% endif %}
       {% if can_access('inventory', False) %}<a href="{{ url_for('inventory') }}" class="{{ 'active' if 'inventory' in request.endpoint }}">📦 Inventory</a>{% endif %}
       {% if can_access('sales', False) %}<a href="{{ url_for('sales_list') }}" class="{{ 'active' if 'sales' in request.endpoint }}">🧾 Sales &amp; Export</a>{% endif %}
