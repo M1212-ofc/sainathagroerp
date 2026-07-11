@@ -140,7 +140,7 @@ def _close_db(_=None):
 
 # make helpers available in every template
 # bump this string whenever static files change to force browsers to reload them
-ASSET_VER = "20260712e"
+ASSET_VER = "20260712f"
 
 
 @app.context_processor
@@ -248,20 +248,18 @@ def dashboard_production():
 # key -> (label, kind: 'timeseries' or 'products' or 'kpiset', needs_finance)
 DASH_METRICS = [
     ("consumption",  "Electrical Consumption (Day vs Night)", "consumption", False),
-    ("crushing",     "Crushing Production (KG)",              "series",       False),
-    ("cleaning",     "Cleaning Production (KG)",              "series",       False),
-    ("inputoutput",  "Input vs Crushing Output (KG)",                 "inputoutput",  False),
-    ("waste",        "Waste (KG)",                           "series",       False),
-    ("crushprod",    "Crushing Products breakdown",          "crushprod",    False),
-    ("cleanprod",    "Cleaning Products breakdown",          "cleanprod",    False),
-    ("finance",      "Income vs Expense (₹)",                "finance",      True),
+    ("crushmerged",  "Crushing Production & Products (KG)",    "crushmerged",  False),
+    ("cleanmerged",  "Cleaning Production & Products (KG)",    "cleanmerged",  False),
+    ("inputoutput",  "Input vs Crushing Output (KG)",         "inputoutput",  False),
+    ("waste",        "Waste (KG)",                            "series",       False),
+    ("finance",      "Income vs Expense (₹)",                 "finance",      True),
 ]
 
 
 def _default_layout(variant):
-    base = ["consumption", "crushing", "cleaning", "inputoutput", "crushprod", "cleanprod"]
+    base = ["consumption", "crushmerged", "cleanmerged", "inputoutput"]
     if variant == "main":
-        base.insert(4, "finance")
+        base.insert(3, "finance")
     widgets = []
     for m in base:
         widgets.append({"id": m, "metric": m, "type": "auto",
@@ -429,6 +427,26 @@ def api_summary():
     cleaning_products = [dict(name=p["name"], kg=round(p["kg"] or 0, 2))
                          for p in prod if p["category"] == "cleaning"]
 
+    # per-day product breakdown (for merged stacked charts)
+    daily = db.execute(
+        """SELECT r.report_date d, pl.category cat, pl.name nm, SUM(pl.total_kg) kg
+           FROM production_lines pl JOIN reports r ON r.id=pl.report_id
+           WHERE r.report_date BETWEEN ? AND ?
+           GROUP BY r.report_date, pl.category, pl.name""", (s, e)).fetchall()
+    crush_names = [p["name"] for p in crushing_products]
+    clean_names = [p["name"] for p in cleaning_products]
+    dates_sorted = sorted(by_date)
+    def build_stack(cat, names):
+        # {product_name: [kg per date]}
+        out = {n: [0] * len(dates_sorted) for n in names}
+        di = {d: i for i, d in enumerate(dates_sorted)}
+        for row in daily:
+            if row["cat"] == cat and row["nm"] in out and row["d"] in di:
+                out[row["nm"]][di[row["d"]]] = round(row["kg"] or 0, 2)
+        return out
+    crushing_stack = build_stack("crushing", crush_names)
+    cleaning_stack = build_stack("cleaning", clean_names)
+
     # ---- previous-period comparison for trend badges ----
     from datetime import datetime as _dt
     try:
@@ -464,6 +482,7 @@ def api_summary():
         range=dict(start=s, end=e), kpi=kpi, series=series,
         shift_totals=shift_totals, trends=trends,
         crushing_products=crushing_products, cleaning_products=cleaning_products,
+        crushing_stack=crushing_stack, cleaning_stack=cleaning_stack,
     )
     # only include money data if the user can see the Main dashboard
     if can_access("dash_main"):

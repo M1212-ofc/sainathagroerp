@@ -56,6 +56,14 @@ async function loadLayout(){
   const meta=layout.find(x=>x.id==="__kpimeta__");
   hiddenKpis=meta&&meta.hiddenKpis?meta.hiddenKpis:[];
   layout=layout.filter(x=>x.id!=="__kpimeta__");
+  // drop widgets whose metric no longer exists (e.g. after the crushing/cleaning merge)
+  const validKeys=new Set(metrics.map(m=>m.key));
+  layout=layout.filter(w=>validKeys.has(w.metric));
+  // if nothing valid remains, build a sensible default from available metrics
+  if(!layout.length){
+    const want=["consumption","crushmerged","cleanmerged","inputoutput"].concat(DASH_MAIN?["finance"]:[]);
+    let n=0;layout=want.filter(k=>validKeys.has(k)).map(k=>({id:k+"_"+(++n),metric:k,type:"auto",size:k==="consumption"?"large":"small",hidden:false}));
+  }
   const sel=document.getElementById("wMetric");
   if(sel)sel.innerHTML=metrics.map(m=>`<option value="${m.key}">${m.label}</option>`).join("");
   applyKpiVisibility();
@@ -159,6 +167,20 @@ function buildChart(canvas,w){
     {label:"KG",data:d.crushing_products.map(p=>p.kg),backgroundColor:COLORS.green,borderRadius:6}]},options:opts(H({horizontal:w.type!=="bar"}))};}
   else if(kind==="cleanprod"){cfg={type:auto("bar"),data:{labels:d.cleaning_products.map(p=>p.name),datasets:[
     {label:"KG",data:d.cleaning_products.map(p=>p.kg),backgroundColor:COLORS.night,borderRadius:6}]},options:opts(H({horizontal:w.type!=="bar"}))};}
+  else if(kind==="crushmerged"||kind==="cleanmerged"){
+    const stack=kind==="crushmerged"?(d.crushing_stack||{}):(d.cleaning_stack||{});
+    const palette=["#2a78d6","#1baf7a","#eda100","#e34948","#4a3aa7","#e87ba4","#eb6834","#008300"];
+    const names=Object.keys(stack);
+    if(w.type==="doughnut"){
+      // doughnut = period totals per product
+      const totals=names.map(n=>stack[n].reduce((a,b)=>a+b,0));
+      cfg={type:"doughnut",data:{labels:names,datasets:[{data:totals,backgroundColor:palette.slice(0,names.length),borderWidth:2,borderColor:"#fff"}]},options:opts({noLegend:false})};
+    }else{
+      const ds=names.map((n,i)=>({label:n,data:stack[n],backgroundColor:palette[i%palette.length]}));
+      const o=opts({stacked:true});if(isH)o.indexAxis="y";
+      cfg={type:(w.type==="line"?"line":"bar"),data:{labels,datasets:ds},options:o};
+    }
+  }
   else{const map={crushing:"crushing",cleaning:"cleaning",waste:"waste"};const field=map[w.metric]||"crushing";
     const color=w.metric==="cleaning"?COLORS.night:(w.metric==="waste"?COLORS.red:COLORS.green);
     cfg={type:auto("line"),data:{labels,datasets:[{label:metricLabel(w.metric),data:d.series.map(s=>s[field]),
