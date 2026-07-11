@@ -4,7 +4,7 @@
 <h2 class="page-title">Waste Management</h2>
 <p class="range-label">Range total: <b>{{ '{:,.1f}'.format(total_kg) }} KG</b> · Recovered value <b>₹{{ '{:,.0f}'.format(total_val) }}</b></p>
 {% if can_access('waste') %}
-<fieldset class="entry-form"><legend>Add Waste Entry</legend>
+<fieldset class="entry-form"><legend>Add Waste Entry <span style="font-weight:400;font-size:12px;color:var(--muted)">— waste cost auto-valued at avg raw rate ₹{{ avg_raw_rate }}/kg</span></legend>
 <form method="post" action="{{ url_for('waste_page') }}">
 <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <div class="grid3">
@@ -25,9 +25,13 @@
     <button name="period" value="year" class="{{ 'active' if period=='year' }}">Year</button></div>
 </form>
 <div class="table-wrap"><table class="data-table">
-  <thead><tr><th>Date</th><th>Source</th><th>Material</th><th>Qty KG</th><th>Disposal</th><th>Value ₹</th><th>Notes</th></tr></thead>
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>Date</th><th>Source</th><th>Material</th><th>Qty KG</th><th>Disposal</th><th>Cost ₹ <small>(@₹{{ avg_raw_rate }}/kg)</small></th><th>Recovered ₹</th><th>Notes</th><th></th></tr></thead>
   <tbody>{% for r in rows %}<tr><td>{{ r.waste_date }}</td><td>{{ r.source }}</td><td>{{ r.material or '' }}</td>
-    <td>{{ r.quantity_kg }}</td><td><span class="chip">{{ r.disposal or '' }}</span></td><td>{{ r.value_inr }}</td><td>{{ r.notes or '' }}</td></tr>
-  {% else %}<tr><td colspan="7" class="empty">No waste in range.</td></tr>{% endfor %}</tbody>
+    <td>{{ r.quantity_kg }}</td><td><span class="chip">{{ r.disposal or '' }}</span></td>
+    <td class="neg">{{ '{:,.0f}'.format(r.cost) }}</td><td>{{ r.value_inr }}</td><td>{{ r.notes or '' }}</td>
+    <td><form method="post" action="{{ url_for('waste_delete', rid=r.id) }}" onsubmit="return confirm('Delete?')" style="display:inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="link-danger">Delete</button></form></td></tr>
+  {% else %}<tr><td colspan="9" class="empty">No waste in range.</td></tr>{% endfor %}</tbody>
+  {% if rows %}<tfoot><tr class="totals-row"><td colspan="5">Total waste cost ({{ total_kg }} kg @ ₹{{ avg_raw_rate }}/kg)</td><td class="neg">₹{{ '{:,.0f}'.format(total_cost) }}</td><td colspan="3"></td></tr></tfoot>{% endif %}
 </table></div>
 {% endblock %}

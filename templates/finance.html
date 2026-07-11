@@ -39,12 +39,13 @@
 {% endif %}
 <h3 style="margin-top:20px">Ledger</h3>
 <div class="table-wrap"><table class="data-table">
-  <thead><tr><th>Date</th><th>Dir</th><th>Category</th><th>Amount ₹</th><th>Source</th><th>Description</th></tr></thead>
+  <thead><tr><th>Date</th><th>Dir</th><th>Category</th><th>Amount ₹</th><th>Source</th><th>Description</th><th></th></tr></thead>
   <tbody>{% for r in rows %}<tr><td>{{ r.entry_date }}</td>
     <td><span class="badge {{ 'day' if r.direction=='income' else 'red' }}">{{ r.direction }}</span></td>
     <td>{{ r.category }}</td><td class="{{ 'pos' if r.direction=='income' else 'neg' }}">{{ '{:,.0f}'.format(r.amount_inr) }}</td>
-    <td><span class="chip">{{ r.source }}</span></td><td>{{ r.description or '' }}</td></tr>
-  {% else %}<tr><td colspan="6" class="empty">No entries.</td></tr>{% endfor %}</tbody>
+    <td><span class="chip">{{ r.source }}</span></td><td>{{ r.description or '' }}</td>
+    <td>{% if r.source in (None,'manual') %}<form method="post" action="{{ url_for('finance_delete', rid=r.id) }}" onsubmit="return confirm('Delete this entry?')" style="display:inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="link-danger">Delete</button></form>{% else %}<small style="color:var(--muted)">auto</small>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="7" class="empty">No entries.</td></tr>{% endfor %}</tbody>
 </table></div>
 <script>
 fetch('/api/finance?period={{ period }}&start={{ start }}&end={{ end }}').then(r=>r.json()).then(d=>{

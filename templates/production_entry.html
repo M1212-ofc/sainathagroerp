@@ -58,6 +58,16 @@
     </div>
     <small style="margin-top:6px">All workers load automatically as <b>Present</b> — just mark anyone Absent or Half-day. Manage the team in <a href="{{ url_for('masters', tab='workers') }}">Masters → Workers</a>.</small>
   </fieldset>
+
+  <fieldset><legend>Machine Production &amp; Costs (મશીન)</legend>
+    <table class="lines-table"><thead><tr><th>Machine</th><th style="width:100px">Output kg</th><th style="width:90px">Units</th><th style="width:100px">Labour ₹</th><th style="width:110px">Maint. ₹</th><th style="width:90px">Cost/kg</th><th></th></tr></thead><tbody id="machinesBody"></tbody></table>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <select id="addMachineSelect"><option value="">— re-add a removed machine —</option></select>
+      <button type="button" class="btn-add" id="addMachineBtn">+ Add selected</button>
+      <button type="button" class="btn-add" id="addAllMachines">+ Add all</button>
+    </div>
+    <small style="margin-top:6px">All machines load automatically. Enter each machine's output, electricity units, labour &amp; maintenance — cost/kg is computed live. Labour &amp; maintenance post to Finance. Manage machines in <a href="{{ url_for('masters', tab='machines') }}">Masters → Machines</a>.</small>
+  </fieldset>
   <fieldset><legend>Loading / Attendance / Maintenance</legend>
     <div class="grid3">
       <label>Light Gayi – power-cut time<input type="text" name="light_gayi_time" value="{{ report.light_gayi_time if report else '' }}" placeholder="e.g. 2:15-2:45"></label>
@@ -79,6 +89,6 @@
   </fieldset>
   <div class="form-actions"><button class="btn-primary">Save Report</button><a href="{{ url_for('production_list') }}" class="btn-cancel">Cancel</a></div>
 </form>
-<script>const existingLines={{ lines_json|safe }};const existingWorkers={{ workers_json|safe }};const masterWorkers={{ master_workers_json|safe }};</script>
-<script src="{{ url_for('static', filename='entry.js') }}"></script>
+<script>const existingLines={{ lines_json|safe }};const existingWorkers={{ workers_json|safe }};const masterWorkers={{ master_workers_json|safe }};const masterMachines={{ machines_json|safe }};const existingMachines={{ mlogs_json|safe }};</script>
+<script src="{{ url_for('static', filename='entry.js') }}?v={{ ASSET_VER }}"></script>
 {% endblock %}

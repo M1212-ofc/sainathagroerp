@@ -139,9 +139,13 @@ def _close_db(_=None):
 
 
 # make helpers available in every template
+# bump this string whenever static files change to force browsers to reload them
+ASSET_VER = "20260711e"
+
+
 @app.context_processor
 def inject_helpers():
-    return {"user": current_user(), "can_access": can_access}
+    return {"user": current_user(), "can_access": can_access, "ASSET_VER": ASSET_VER}
 
 
 # ---------------------------------------------------------------- date ranges
@@ -590,6 +594,7 @@ def production_entry():
             db.execute("DELETE FROM production_lines WHERE report_id=?", (rid,))
             db.execute("DELETE FROM workers WHERE report_id=?", (rid,))
             logic.clear_source(db, "inventory_moves", "production", rid)
+            logic.clear_source(db, "finance", "machine", rid)
         else:
             cur = db.execute(
                 """INSERT INTO reports (report_date,shift,start_unit,close_unit,consumption,
@@ -649,30 +654,72 @@ def production_entry():
                 (f.get("report_date"), "production", "shift waste", waste_kg,
                  session.get("user_id")),
             )
+        # ---- #6: machine logs (per-machine output/units/labour/maintenance) ----
+        db.execute("DELETE FROM machine_logs WHERE report_id=?", (rid,))
+        m_id = f.getlist("machine_id")
+        m_name = f.getlist("machine_name")
+        m_out = f.getlist("machine_output")
+        m_units = f.getlist("machine_units")
+        m_lab = f.getlist("machine_labour")
+        m_maint = f.getlist("machine_maint")
+        for i in range(len(m_id)):
+            try:
+                mid = int(m_id[i]) if m_id[i].strip() else None
+            except (ValueError, IndexError):
+                mid = None
+            if not mid:
+                continue
+            out = float(m_out[i]) if i < len(m_out) and m_out[i].strip() else 0
+            un = float(m_units[i]) if i < len(m_units) and m_units[i].strip() else 0
+            lab = float(m_lab[i]) if i < len(m_lab) and m_lab[i].strip() else 0
+            mnt = float(m_maint[i]) if i < len(m_maint) and m_maint[i].strip() else 0
+            if out or un or lab or mnt:
+                db.execute(
+                    """INSERT INTO machine_logs (report_id,log_date,machine_id,machine_name,
+                       output_kg,units,labour_cost,maint_cost) VALUES (?,?,?,?,?,?,?,?)""",
+                    (rid, f.get("report_date"), mid,
+                     m_name[i] if i < len(m_name) else "", out, un, lab, mnt))
+                # post labour + maintenance to finance
+                if lab > 0:
+                    logic.post_finance(db, f.get("report_date"), "expense", "salary", lab,
+                                       description=f"Machine labour: {m_name[i] if i<len(m_name) else ''}",
+                                       source="machine", ref_id=rid, user_id=session.get("user_id"))
+                if mnt > 0:
+                    logic.post_finance(db, f.get("report_date"), "expense", "maintenance", mnt,
+                                       description=f"Machine maintenance: {m_name[i] if i<len(m_name) else ''}",
+                                       source="machine", ref_id=rid, user_id=session.get("user_id"))
         db.commit()
         flash("Production report saved (stock updated).", "ok")
         return redirect(url_for("production_list"))
 
     edit_id = request.args.get("edit")
     report = None
-    lines = workers = []
+    lines = workers = mlogs = []
     if edit_id:
         report = db.execute("SELECT * FROM reports WHERE id=?", (edit_id,)).fetchone()
         lines = db.execute("SELECT * FROM production_lines WHERE report_id=?", (edit_id,)).fetchall()
         workers = db.execute("SELECT * FROM workers WHERE report_id=? ORDER BY slno", (edit_id,)).fetchall()
+        mlogs = db.execute("SELECT * FROM machine_logs WHERE report_id=?", (edit_id,)).fetchall()
     lines_json = json.dumps([dict(category=l["category"], name=l["name"], theli=l["theli"],
                                   theli_weight=l["theli_weight"], total_kg=l["total_kg"]) for l in lines])
     workers_json = json.dumps([dict(slno=w["slno"], name=w["name"],
                                     worker_id=(w["worker_id"] if "worker_id" in w.keys() else None),
                                     attendance=(w["attendance"] if "attendance" in w.keys() else "present"),
-                                    hours=(w["hours"] if "hours" in w.keys() else 0)) for w in workers])
+                                    hours=(w["hours"] if "hours" in w.keys() else 0),
+                                    ot_hours=(w["ot_hours"] if "ot_hours" in w.keys() else 0)) for w in workers])
     materials = db.execute("SELECT * FROM raw_materials WHERE active=1 ORDER BY name").fetchall()
     master_workers = db.execute("SELECT * FROM worker_master WHERE active=1 OR active IS NULL ORDER BY name").fetchall()
     master_workers_json = json.dumps([dict(id=w["id"], name=w["name"],
                                            default_hours=w["default_hours"]) for w in master_workers])
+    master_machines = db.execute("SELECT * FROM machine_master WHERE active=1 OR active IS NULL ORDER BY name").fetchall()
+    machines_json = json.dumps([dict(id=m["id"], name=m["name"], capacity_kg=m["capacity_kg"]) for m in master_machines])
+    mlogs_json = json.dumps([dict(machine_id=x["machine_id"], machine_name=x["machine_name"],
+                                  output_kg=x["output_kg"], units=x["units"],
+                                  labour_cost=x["labour_cost"], maint_cost=x["maint_cost"]) for x in mlogs])
     return render_template("production_entry.html", report=report,
                            materials=materials, master_workers=master_workers,
                            master_workers_json=master_workers_json,
+                           machines_json=machines_json, mlogs_json=mlogs_json,
                            lines_json=lines_json, workers_json=workers_json,
                            today=date.today().isoformat())
 
@@ -908,7 +955,22 @@ def sales_entry():
     edit_id = request.args.get("edit")
     row = db.execute("SELECT * FROM sales WHERE id=?", (edit_id,)).fetchone() if edit_id else None
     customers = db.execute("SELECT * FROM customers ORDER BY name").fetchall()
-    products = db.execute("SELECT * FROM products WHERE active=1 ORDER BY name").fetchall()
+    # #11: show products WITH their current finished-stock, and include any
+    # finished-inventory item even if it isn't in the products master yet
+    prod_rows = db.execute("SELECT * FROM products WHERE active=1 ORDER BY name").fetchall()
+    raw_stock, finished_stock = logic.stock_levels(db)
+    stock_by_name = {s["item_name"]: s["qty"] for s in finished_stock}
+    products = []
+    seen = set()
+    for p in prod_rows:
+        d = dict(p)
+        d["stock"] = round(stock_by_name.get(p["name"], 0), 1)
+        products.append(d)
+        seen.add(p["name"])
+    # any finished-goods in inventory not in the master → add so they're sellable
+    for name, qty in stock_by_name.items():
+        if name not in seen and qty:
+            products.append(dict(id=0, name=name, stock=round(qty, 1), unit="kg", _from_inventory=True))
     currencies = db.execute("SELECT * FROM currencies").fetchall()
     default_kind = request.args.get("kind", "domestic")
     return render_template("sales_entry.html", row=row, customers=customers,
@@ -960,8 +1022,30 @@ def waste_page():
         (s, e)).fetchall()
     total_kg = sum(r["quantity_kg"] or 0 for r in rows)
     total_val = sum(r["value_inr"] or 0 for r in rows)
-    return render_template("waste.html", rows=rows, period=period, start=s, end=e,
-                           total_kg=round(total_kg, 2), total_val=round(total_val, 2))
+    # #12: average raw-material purchase price per kg across all procurement
+    avg = db.execute(
+        """SELECT COALESCE(SUM(quantity_kg*rate_per_kg),0) v, COALESCE(SUM(quantity_kg),0) q
+           FROM procurement""").fetchone()
+    avg_raw_rate = round(avg["v"] / avg["q"], 2) if avg["q"] else 0
+    # attach computed cost per waste row
+    rows2 = []
+    for r in rows:
+        d = dict(r)
+        d["cost"] = round((r["quantity_kg"] or 0) * avg_raw_rate, 2)
+        rows2.append(d)
+    return render_template("waste.html", rows=rows2, period=period, start=s, end=e,
+                           total_kg=round(total_kg, 2), total_val=round(total_val, 2),
+                           avg_raw_rate=avg_raw_rate,
+                           total_cost=round(total_kg * avg_raw_rate, 2))
+
+
+@app.route("/waste/delete/<int:rid>", methods=["POST"])
+@require("waste")
+def waste_delete(rid):
+    g.db.execute("DELETE FROM waste WHERE id=?", (rid,))
+    g.db.commit()
+    flash("Waste entry deleted.", "ok")
+    return redirect(url_for("waste_page"))
 
 
 # ================================================================ FINANCE
@@ -1015,6 +1099,20 @@ def finance_page():
                            metrics=metrics, period=period, start=s, end=e)
 
 
+@app.route("/finance/delete/<int:rid>", methods=["POST"])
+@require("finance")
+def finance_delete(rid):
+    row = g.db.execute("SELECT source FROM finance WHERE id=?", (rid,)).fetchone()
+    if row and row["source"] not in (None, "manual"):
+        flash("This entry was auto-posted from another page (e.g. sale/procurement/payroll). "
+              "Edit it from its source page, not here.", "err")
+        return redirect(url_for("finance_page"))
+    g.db.execute("DELETE FROM finance WHERE id=?", (rid,))
+    g.db.commit()
+    flash("Finance entry deleted.", "ok")
+    return redirect(url_for("finance_page"))
+
+
 @app.route("/api/finance")
 @require("finance")
 def api_finance():
@@ -1062,12 +1160,25 @@ def payroll():
     # date to post finance rows on: month-end, but never in the future
     post_date = min(e, date.today().isoformat())
 
+    # POST = save a per-worker adjustment (edit)
+    if request.method == "POST" and request.form.get("action") == "adjust":
+        wid = request.form.get("worker_id")
+        amt = num(request.form, "amount", float, 0)
+        note = request.form.get("note")
+        db.execute(
+            """INSERT INTO wage_adjustments (month, worker_id, amount, note) VALUES (?,?,?,?)
+               ON CONFLICT(month, worker_id) DO UPDATE SET amount=excluded.amount, note=excluded.note""",
+            (month, wid, amt, note))
+        db.commit()
+        flash("Adjustment saved. Review and re-post to Finance.", "ok")
+        return redirect(url_for("payroll", month=month))
+
     # POST = approve & post wages to finance
     if request.method == "POST" and request.form.get("action") == "post":
         # remove any prior wage postings for this month to avoid duplicates
         logic.clear_source(db, "finance", "payroll", month_ref(month))
         total = 0.0
-        for wid, amt in _compute_wages(db, s, e).items():
+        for wid, amt in _compute_wages(db, s, e, month).items():
             if amt["total"] > 0:
                 logic.post_finance(db, post_date, "expense", "salary", amt["total"],
                                    description=f"Wages {month} — {amt['name']}",
@@ -1078,7 +1189,7 @@ def payroll():
         flash(f"Posted ₹{total:,.0f} wages for {month} to Finance.", "ok")
         return redirect(url_for("payroll", month=month))
 
-    wages = _compute_wages(db, s, e)
+    wages = _compute_wages(db, s, e, month)
     grand = round(sum(w["total"] for w in wages.values()), 2)
     already = db.execute(
         "SELECT COUNT(*) FROM finance WHERE source='payroll' AND ref_id=?",
@@ -1092,9 +1203,14 @@ def month_ref(month):
     return int(month.replace("-", ""))
 
 
-def _compute_wages(db, s, e):
-    """Compute wages per worker from attendance between s and e."""
+def _compute_wages(db, s, e, month=None):
+    """Compute wages per worker from attendance between s and e.
+    If month given, apply saved per-worker adjustments (bonus/deduction)."""
     workers = db.execute("SELECT * FROM worker_master").fetchall()
+    adj = {}
+    if month:
+        for a in db.execute("SELECT worker_id, amount, note FROM wage_adjustments WHERE month=?", (month,)).fetchall():
+            adj[a["worker_id"]] = dict(amount=a["amount"] or 0, note=a["note"])
     result = {}
     for w in workers:
         rows = db.execute(
@@ -1108,18 +1224,20 @@ def _compute_wages(db, s, e):
         pay_type = w["pay_type"] if "pay_type" in w.keys() else "daily"
         rate = (w["pay_rate"] if "pay_rate" in w.keys() else 0) or 0
         ot_rate = (w["ot_rate"] if "ot_rate" in w.keys() else 0) or 0
-        # overtime hours = sum of entered OT from production entries
         ot_hours = sum((x["ot_hours"] or 0) for x in rows)
         if pay_type == "monthly":
-            base = rate  # full monthly salary (could prorate; kept simple)
+            base = rate
         else:
             base = rate * (present + 0.5 * half)
         ot_pay = ot_hours * ot_rate
-        total = round(base + ot_pay, 2)
+        a = adj.get(w["id"], dict(amount=0, note=None))
+        adjustment = a["amount"] or 0
+        total = round(base + ot_pay + adjustment, 2)
         result[w["id"]] = dict(
             id=w["id"], name=w["name"], pay_type=pay_type, rate=rate,
             present=present, half=half, absent=absent, ot_hours=round(ot_hours, 1),
-            base=round(base, 2), ot_pay=round(ot_pay, 2), total=total)
+            base=round(base, 2), ot_pay=round(ot_pay, 2),
+            adjustment=round(adjustment, 2), adj_note=a["note"], total=total)
     return result
 
 
@@ -1131,15 +1249,21 @@ def electricity():
     if request.method == "POST":
         f = request.form
         month = f.get("month")
+        rate = num(f, "rate_per_unit", float, 0)
+        units = num(f, "units", float, 0)
+        amount = num(f, "amount_inr")
+        # if amount is blank but units×rate given, compute amount
+        if amount == 0 and units and rate:
+            amount = round(units * rate, 2)
         db.execute(
-            """INSERT INTO electricity_bills (month, amount_inr, units, note) VALUES (?,?,?,?)
+            """INSERT INTO electricity_bills (month, amount_inr, units, rate_per_unit, note) VALUES (?,?,?,?,?)
                ON CONFLICT(month) DO UPDATE SET amount_inr=excluded.amount_inr,
-               units=excluded.units, note=excluded.note""",
-            (month, num(f, "amount_inr"), num(f, "units", float, 0), f.get("note")))
+               units=excluded.units, rate_per_unit=excluded.rate_per_unit, note=excluded.note""",
+            (month, amount, units, rate, f.get("note")))
         # auto-post as an electricity expense in finance (replace prior for that month)
         logic.clear_source(db, "finance", "electricity", month_ref(month))
         elec_date = min(month + "-28", date.today().isoformat())
-        logic.post_finance(db, elec_date, "expense", "electricity", num(f, "amount_inr"),
+        logic.post_finance(db, elec_date, "expense", "electricity", amount,
                            description=f"MGVCL bill {month}", source="electricity",
                            ref_id=month_ref(month), user_id=session.get("user_id"))
         db.commit()
@@ -1156,9 +1280,21 @@ def electricity():
             """SELECT COALESCE(SUM(crushing_total_kg),0)+COALESCE(SUM(cleaning_total_kg),0) kg
                FROM reports WHERE report_date BETWEEN ? AND ?""", (s, e)).fetchone()["kg"]
         cpk = round(b["amount_inr"] / prod, 3) if prod else None
+        rate = b["rate_per_unit"] if "rate_per_unit" in b.keys() else 0
         rows.append(dict(month=b["month"], amount=b["amount_inr"], units=b["units"],
-                         production=round(prod, 1), cost_per_kg=cpk, note=b["note"]))
+                         rate_per_unit=rate, production=round(prod, 1), cost_per_kg=cpk, note=b["note"]))
     return render_template("electricity.html", rows=rows)
+
+
+@app.route("/api/electricity_rate")
+@require("finance")
+def api_electricity_rate():
+    """Return an approximate current MGVCL LT industrial rate as a suggestion.
+    This is a reference only — the user should verify against their actual bill."""
+    # GERC LT-MD / industrial effective ~₹ per unit incl. FPPPA (approx, 2026-27)
+    # kept as a server-side constant we can update; not scraped live for reliability
+    return jsonify(dict(rate=8.15, note="Approx. MGVCL LT industrial incl. FPPPA (~₹3.15) — verify with your bill",
+                        source="GERC tariff 2026-27 (approximate)"))
 
 
 # ================================================================ MASTERS (full CRUD)
@@ -1269,6 +1405,15 @@ def masters():
                 else:
                     db.execute("INSERT INTO raw_materials (name,unit,low_stock) VALUES (?,?,?)",
                                (f.get("name"), f.get("unit") or "kg", num(f, "low_stock", float, 0)))
+            elif t == "machine":
+                if rid:
+                    db.execute("UPDATE machine_master SET name=?,capacity_kg=?,power_kw=?,note=? WHERE id=?",
+                               (f.get("name"), num(f, "capacity_kg", float, 0),
+                                num(f, "power_kw", float, 0), f.get("note"), rid))
+                else:
+                    db.execute("INSERT INTO machine_master (name,capacity_kg,power_kw,note,active) VALUES (?,?,?,?,1)",
+                               (f.get("name"), num(f, "capacity_kg", float, 0),
+                                num(f, "power_kw", float, 0), f.get("note")))
             elif t == "worker":
                 if rid:
                     db.execute("""UPDATE worker_master SET name=?,phone=?,role=?,default_hours=?,
@@ -1310,6 +1455,7 @@ def masters():
         products=[dict(r) for r in db.execute("SELECT * FROM products ORDER BY category,name").fetchall()],
         materials=[dict(r) for r in db.execute("SELECT * FROM raw_materials ORDER BY name").fetchall()],
         workers=[dict(r) for r in db.execute("SELECT * FROM worker_master ORDER BY name").fetchall()],
+        machines=[dict(r) for r in db.execute("SELECT * FROM machine_master ORDER BY name").fetchall()],
         currencies=db.execute("SELECT * FROM currencies").fetchall(),
         custom_fields=db.execute("SELECT * FROM custom_fields ORDER BY entity,sort").fetchall(),
         cf_supplier=_custom_field_defs(db, "supplier"),
@@ -1325,9 +1471,61 @@ def masters_delete():
     db = g.db
     t = request.form.get("type")
     rid = request.form.get("id")
+    tab = request.form.get("tab", "suppliers")
+
+    # ---- #9: block deletion if the item is referenced anywhere ----
+    def blocked(msg):
+        flash(msg, "err")
+        return redirect(url_for("masters", tab=tab))
+
+    if t == "raw":
+        row = db.execute("SELECT name FROM raw_materials WHERE id=?", (rid,)).fetchone()
+        nm = row["name"] if row else None
+        used = 0
+        used += db.execute("SELECT COUNT(*) c FROM procurement WHERE raw_material_id=?", (rid,)).fetchone()["c"]
+        if nm:
+            used += db.execute("SELECT COUNT(*) c FROM inventory_moves WHERE item_type='raw' AND item_name=?",
+                               (nm,)).fetchone()["c"]
+        # reports reference raw material via raw_material_id if the column exists
+        try:
+            used += db.execute("SELECT COUNT(*) c FROM reports WHERE raw_material_id=?", (rid,)).fetchone()["c"]
+        except Exception:
+            pass
+        if used:
+            return blocked(f"Cannot delete '{nm}' — it is used in {used} record(s) "
+                           f"(procurement/production/inventory). It stays to keep your records intact.")
+    elif t == "product":
+        row = db.execute("SELECT name FROM products WHERE id=?", (rid,)).fetchone()
+        nm = row["name"] if row else None
+        used = 0
+        if nm:
+            used += db.execute("SELECT COUNT(*) c FROM sales WHERE product_id=?", (rid,)).fetchone()["c"]
+            used += db.execute("SELECT COUNT(*) c FROM inventory_moves WHERE item_type='finished' AND item_name=?",
+                               (nm,)).fetchone()["c"]
+        if used:
+            return blocked(f"Cannot delete '{nm}' — it is used in {used} sale/inventory record(s).")
+    elif t == "supplier":
+        used = db.execute("SELECT COUNT(*) c FROM procurement WHERE supplier_id=?", (rid,)).fetchone()["c"]
+        if used:
+            return blocked(f"Cannot delete this supplier — used in {used} procurement record(s).")
+    elif t == "customer":
+        used = db.execute("SELECT COUNT(*) c FROM sales WHERE customer_id=?", (rid,)).fetchone()["c"]
+        if used:
+            return blocked(f"Cannot delete this customer — used in {used} sale(s).")
+    elif t == "worker":
+        used = db.execute("SELECT COUNT(*) c FROM workers WHERE worker_id=?", (rid,)).fetchone()["c"]
+        if used:
+            return blocked(f"Cannot delete this worker — they appear in {used} attendance record(s). "
+                           f"You can leave them; inactive workers won't affect much.")
+
+    elif t == "machine":
+        used = db.execute("SELECT COUNT(*) c FROM machine_logs WHERE machine_id=?", (rid,)).fetchone()["c"]
+        if used:
+            return blocked(f"Cannot delete this machine — it has {used} production log(s).")
+
     table = {"supplier": "suppliers", "customer": "customers", "product": "products",
              "raw": "raw_materials", "custom_field": "custom_fields",
-             "worker": "worker_master"}.get(t)
+             "worker": "worker_master", "machine": "machine_master"}.get(t)
     if table:
         db.execute(f"DELETE FROM {table} WHERE id=?", (rid,))
         db.commit()
@@ -1336,7 +1534,7 @@ def masters_delete():
         db.execute("DELETE FROM currencies WHERE code=?", (rid,))
         db.commit()
         flash("Deleted.", "ok")
-    return redirect(url_for("masters", tab=request.form.get("tab", "suppliers")))
+    return redirect(url_for("masters", tab=tab))
 
 
 # ---- JSON API for inline "+ Add" from other pages (supplier/customer) ----

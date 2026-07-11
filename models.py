@@ -180,6 +180,31 @@ CREATE TABLE IF NOT EXISTS workers (
     FOREIGN KEY(report_id) REFERENCES reports(id) ON DELETE CASCADE
 );
 
+-- ------------------------------------------------------- MACHINE MASTER
+CREATE TABLE IF NOT EXISTS machine_master (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    name          TEXT NOT NULL,
+    capacity_kg   REAL DEFAULT 0,        -- rated output per day
+    power_kw      REAL DEFAULT 0,        -- rated power draw
+    note          TEXT,
+    active        INTEGER DEFAULT 1
+);
+
+-- ------------------------------------------------------- MACHINE DAILY LOG
+CREATE TABLE IF NOT EXISTS machine_logs (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    report_id     INTEGER,              -- links to reports.id (production entry)
+    log_date      TEXT NOT NULL,
+    machine_id    INTEGER NOT NULL,
+    machine_name  TEXT,
+    output_kg     REAL DEFAULT 0,
+    units         REAL DEFAULT 0,       -- electricity units consumed
+    labour_cost   REAL DEFAULT 0,
+    maint_cost    REAL DEFAULT 0,
+    note          TEXT,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
+
 -- ------------------------------------------------------- WORKER MASTER
 CREATE TABLE IF NOT EXISTS worker_master (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -195,13 +220,24 @@ CREATE TABLE IF NOT EXISTS worker_master (
 
 -- ------------------------------------------------------- ELECTRICITY BILLS
 CREATE TABLE IF NOT EXISTS electricity_bills (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    month       TEXT NOT NULL,          -- YYYY-MM
-    amount_inr  REAL NOT NULL,
-    units       REAL DEFAULT 0,         -- optional: MGVCL units billed
-    note        TEXT,
-    created_at  TEXT DEFAULT (datetime('now')),
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    month         TEXT NOT NULL,          -- YYYY-MM
+    amount_inr    REAL NOT NULL,
+    units         REAL DEFAULT 0,         -- optional: MGVCL units billed
+    rate_per_unit REAL DEFAULT 0,         -- ₹ per unit (manual or suggested)
+    note          TEXT,
+    created_at    TEXT DEFAULT (datetime('now')),
     UNIQUE(month)
+);
+
+-- ------------------------------------------------------- WAGE ADJUSTMENTS
+CREATE TABLE IF NOT EXISTS wage_adjustments (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    month       TEXT NOT NULL,           -- YYYY-MM
+    worker_id   INTEGER NOT NULL,
+    amount      REAL DEFAULT 0,          -- +bonus / -deduction
+    note        TEXT,
+    UNIQUE(month, worker_id)
 );
 
 -- ------------------------------------------------------- PAYMENTS LOG

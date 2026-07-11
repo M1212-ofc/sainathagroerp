@@ -8,24 +8,38 @@
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   <div class="grid3">
     <label>Month<input type="month" name="month" required></label>
-    <label>Bill Amount (₹)<input type="number" step="any" name="amount_inr" required></label>
-    <label>Units billed (optional)<input type="number" step="any" name="units" placeholder="MGVCL units"></label>
+    <label>Units billed<input type="number" step="any" name="units" id="eUnits" placeholder="MGVCL units"></label>
+    <label>Rate ₹/unit <button type="button" id="suggestRate" class="btn-add" style="padding:2px 8px;font-size:11px">Suggest</button><input type="number" step="any" name="rate_per_unit" id="eRate" placeholder="e.g. 8.15"></label>
+    <label>Bill Amount (₹) <span class="auto-badge">auto</span><input type="number" step="any" name="amount_inr" id="eAmount" class="auto-field" placeholder="units × rate, or type"><small>= Units × Rate (or enter directly)</small></label>
     <label>Note<input name="note" placeholder="optional"></label>
   </div>
   <div class="form-actions"><button class="btn-primary">Save Bill</button></div>
-  <small>Saving auto-posts this as an <b>electricity expense</b> in Finance, and computes cost-per-kg from that month's production.</small>
+  <small>Saving auto-posts this as an <b>electricity expense</b> in Finance, and computes cost-per-kg from that month's production. The suggested rate is approximate — always verify with your actual MGVCL bill.</small>
 </form></fieldset>
+<script>
+(function(){
+  const u=document.getElementById('eUnits'),r=document.getElementById('eRate'),a=document.getElementById('eAmount');
+  function calc(){const uv=parseFloat(u.value)||0,rv=parseFloat(r.value)||0;if(uv&&rv)a.value=(uv*rv).toFixed(2);}
+  u.addEventListener('input',calc);r.addEventListener('input',calc);
+  document.getElementById('suggestRate').addEventListener('click',async()=>{
+    try{const d=await(await fetch('/api/electricity_rate')).json();r.value=d.rate;calc();
+      alert('Suggested rate: ₹'+d.rate+'/unit\n'+d.note+'\n\nThis is approximate — please verify with your actual MGVCL bill.');}
+    catch(e){alert('Could not fetch suggested rate. Please enter manually from your bill.');}
+  });
+})();
+</script>
 
 <div class="table-wrap"><table class="data-table">
-  <thead><tr><th>Month</th><th>Bill ₹</th><th>Units</th><th>Production (kg)</th><th>Cost / kg ₹</th><th>Note</th></tr></thead>
+  <thead><tr><th>Month</th><th>Bill ₹</th><th>Units</th><th>₹/unit</th><th>Production (kg)</th><th>Cost / kg ₹</th><th>Note</th></tr></thead>
   <tbody>
     {% for r in rows %}
     <tr><td>{{ r.month }}</td><td>{{ '{:,.0f}'.format(r.amount) }}</td><td>{{ r.units or '—' }}</td>
+      <td>{{ r.rate_per_unit or '—' }}</td>
       <td>{{ '{:,.1f}'.format(r.production) }}</td>
       <td>{% if r.cost_per_kg %}<b>₹{{ r.cost_per_kg }}</b>{% else %}—{% endif %}</td>
       <td>{{ r.note or '' }}</td></tr>
     {% endfor %}
-    {% if not rows %}<tr><td colspan="6" class="empty">No electricity bills entered yet.</td></tr>{% endif %}
+    {% if not rows %}<tr><td colspan="7" class="empty">No electricity bills entered yet.</td></tr>{% endif %}
   </tbody>
 </table></div>
 {% endblock %}

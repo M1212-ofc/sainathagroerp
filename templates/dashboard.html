@@ -107,4 +107,4 @@
 
 <script>window.DASH_MAIN = {{ 'true' if is_main else 'false' }};window.DASH_VARIANT="{{ 'main' if is_main else 'production' }}";</script>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', filename='dashboard.js') }}"></script>{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='dashboard.js') }}?v={{ ASSET_VER }}"></script>{% endblock %}

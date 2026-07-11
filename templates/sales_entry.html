@@ -14,7 +14,7 @@
         <option value="export" {{ 'selected' if kind=='export' }}>Export</option></select></label>
       <label>Customer<select name="customer_id" id="custSelect"><option value="">— none —</option>
         {% for c in customers %}<option value="{{ c.id }}" data-vehicle="{{ c.vehicle_no or '' }}" {{ 'selected' if row and row.customer_id==c.id }}>{{ c.company_name or c.name }}{{ ' ('~c.country~')' if c.country }}</option>{% endfor %}</select><a class="add-link" href="#" onclick="openCust();return false;">+ Add new customer</a></label>
-      <label>Product<select name="product_id" id="prodSelect">{% for p in products %}<option value="{{ p.id }}" {{ 'selected' if row and row.product_id==p.id }}>{{ p.name }}</option>{% endfor %}</select><a class="add-link" href="#" onclick="openProd();return false;">+ Add new product</a></label>
+      <label>Product<select name="product_id" id="prodSelect">{% for p in products %}<option value="{{ p.id }}" data-name="{{ p.name }}" {{ 'selected' if row and row.product_id==p.id }}>{{ p.name }} — {{ p.stock }} kg in stock{% if p._from_inventory %} (not in master){% endif %}</option>{% endfor %}</select><a class="add-link" href="#" onclick="openProd();return false;">+ Add new product</a></label>
       <label>Quantity (KG)<input type="number" step="any" name="quantity_kg" id="sq" value="{{ row.quantity_kg if row else '' }}"><div class="stock-hint" id="saleStockHint"></div></label>
       <label>Rate / KG<input type="number" step="any" name="rate" id="sr" value="{{ row.rate if row else '' }}"></label>
       <label>Goods Cost<input type="number" id="sgoods" value="{{ row.goods_cost if row else '' }}" readonly><small>= Qty × Rate</small></label>
