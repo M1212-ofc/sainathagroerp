@@ -140,7 +140,7 @@ def _close_db(_=None):
 
 # make helpers available in every template
 # bump this string whenever static files change to force browsers to reload them
-ASSET_VER = "20260711e"
+ASSET_VER = "20260712e"
 
 
 @app.context_processor
@@ -539,6 +539,7 @@ def production_entry():
         w_att = f.getlist("worker_attendance")
         w_hrs = f.getlist("worker_hours")
         w_ot = f.getlist("worker_ot")
+        w_mach = f.getlist("worker_machine")
         wrows = []
         for i in range(len(w_name)):
             nm = w_name[i].strip()
@@ -561,7 +562,11 @@ def production_entry():
                     ot = float(w_ot[i]) if i < len(w_ot) and w_ot[i].strip() else 0
                 except (ValueError, IndexError):
                     ot = 0
-                wrows.append((sl, nm, wid, att, hrs, ot))
+                try:
+                    mach = int(w_mach[i]) if i < len(w_mach) and w_mach[i].strip() else None
+                except (ValueError, IndexError):
+                    mach = None
+                wrows.append((sl, nm, wid, att, hrs, ot, mach))
 
         waste_kg = num(f, "waste_kg")
         params = (
@@ -573,7 +578,7 @@ def production_entry():
             round(ct, 2), round(ck, 2), round(lt, 2), round(lk, 2),
             waste_kg, f.get("light_gayi_time"),
             f.get("loading_powder"), f.get("loading_grit"), f.get("loading_bhunar"),
-            f.get("maintenance"), int(num(f, "left_with_note", int)),
+            f.get("maintenance"), num(f, "other_maint_cost", float, 0), int(num(f, "left_with_note", int)),
             f.get("half_attendance"), f.get("on_leave_names"),
             f.get("reporter"), f.get("office"), f.get("notes"),
             session.get("user_id"),
@@ -586,7 +591,7 @@ def production_entry():
                 consumption=?,persons_m1=?,persons_m2=?,reel=?,on_time=?,off_time=?,
                 raw_buckets=?,bucket_weight=?,raw_output_kg=?,crushing_total_theli=?,crushing_total_kg=?,
                 cleaning_total_theli=?,cleaning_total_kg=?,waste_kg=?,light_gayi_time=?,
-                loading_powder=?,loading_grit=?,loading_bhunar=?,maintenance=?,
+                loading_powder=?,loading_grit=?,loading_bhunar=?,maintenance=?,other_maint_cost=?,
                 left_with_note=?,half_attendance=?,on_leave_names=?,reporter=?,office=?,
                 notes=?,created_by=? WHERE id=?""",
                 params + (rid,),
@@ -594,14 +599,16 @@ def production_entry():
             db.execute("DELETE FROM production_lines WHERE report_id=?", (rid,))
             db.execute("DELETE FROM workers WHERE report_id=?", (rid,))
             logic.clear_source(db, "inventory_moves", "production", rid)
+            logic.clear_source(db, "finance", "machine", rid)
+            logic.clear_source(db, "finance", "prodmaint", rid)
         else:
             cur = db.execute(
                 """INSERT INTO reports (report_date,shift,start_unit,close_unit,consumption,
                 persons_m1,persons_m2,reel,on_time,off_time,raw_buckets,bucket_weight,raw_output_kg,
                 crushing_total_theli,crushing_total_kg,cleaning_total_theli,cleaning_total_kg,
-                waste_kg,light_gayi_time,loading_powder,loading_grit,loading_bhunar,maintenance,
+                waste_kg,light_gayi_time,loading_powder,loading_grit,loading_bhunar,maintenance,other_maint_cost,
                 left_with_note,half_attendance,on_leave_names,reporter,office,notes,created_by)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 params,
             )
             rid = cur.lastrowid
@@ -621,9 +628,9 @@ def production_entry():
                                      tot, "production", rid,
                                      "Auto from daily production",
                                      session.get("user_id"))
-        for sl, nm, wid, att, hrs, ot in wrows:
-            db.execute("INSERT INTO workers (report_id,slno,name,worker_id,attendance,hours,ot_hours) VALUES (?,?,?,?,?,?,?)",
-                       (rid, sl, nm, wid, att, hrs, ot))
+        for sl, nm, wid, att, hrs, ot, mach in wrows:
+            db.execute("INSERT INTO workers (report_id,slno,name,worker_id,attendance,hours,ot_hours,machine_id) VALUES (?,?,?,?,?,?,?,?)",
+                       (rid, sl, nm, wid, att, hrs, ot, mach))
 
         # AUTO inventory: deduct raw material (input weight = buckets x bucket weight)
         input_kg = int(num(f, "raw_buckets", int)) * num(f, "bucket_weight", float, 25)
@@ -653,52 +660,30 @@ def production_entry():
                 (f.get("report_date"), "production", "shift waste", waste_kg,
                  session.get("user_id")),
             )
-        db.commit()
-        flash("Production report saved (stock updated).", "ok")
-        return redirect(url_for("production_list"))
-
-    edit_id = request.args.get("edit")
-    report = None
-    lines = workers = []
-    if edit_id:
-        report = db.execute("SELECT * FROM reports WHERE id=?", (edit_id,)).fetchone()
-        lines = db.execute("SELECT * FROM production_lines WHERE report_id=?", (edit_id,)).fetchall()
-        workers = db.execute("SELECT * FROM workers WHERE report_id=? ORDER BY slno", (edit_id,)).fetchall()
-    lines_json = json.dumps([dict(category=l["category"], name=l["name"], theli=l["theli"],
-                                  theli_weight=l["theli_weight"], total_kg=l["total_kg"]) for l in lines])
-    workers_json = json.dumps([dict(slno=w["slno"], name=w["name"],
-                                    worker_id=(w["worker_id"] if "worker_id" in w.keys() else None),
-                                    attendance=(w["attendance"] if "attendance" in w.keys() else "present"),
-                                    hours=(w["hours"] if "hours" in w.keys() else 0),
-                                    ot_hours=(w["ot_hours"] if "ot_hours" in w.keys() else 0)) for w in workers])
-    materials = db.execute("SELECT * FROM raw_materials WHERE active=1 ORDER BY name").fetchall()
-    master_workers = db.execute("SELECT * FROM worker_master WHERE active=1 OR active IS NULL ORDER BY name").fetchall()
-    master_workers_json = json.dumps([dict(id=w["id"], name=w["name"],
-                                           default_hours=w["default_hours"]) for w in master_workers])
-    return render_template("production_entry.html", report=report,
-                           materials=materials, master_workers=master_workers,
-                           master_workers_json=master_workers_json,
-                           lines_json=lines_json, workers_json=workers_json,
-                           today=date.today().isoformat())
-
-
-@app.route("/production/machines", methods=["GET", "POST"])
-@require("production")
-def machine_production():
-    db = g.db
-    if request.method == "POST":
-        log_date = request.form.get("log_date") or date.today().isoformat()
-        m_id = request.form.getlist("machine_id")
-        m_name = request.form.getlist("machine_name")
-        m_out = request.form.getlist("machine_output")
-        m_units = request.form.getlist("machine_units")
-        m_lab = request.form.getlist("machine_labour")
-        m_maint = request.form.getlist("machine_maint")
-
-        date_key = int(log_date.replace("-", "") or 0)
-        db.execute("DELETE FROM machine_logs WHERE log_date=? AND report_id IS NULL", (log_date,))
-        logic.clear_source(db, "finance", "machine_production", date_key)
-
+        # ---- #6: machine logs (per-machine output/units/labour/maintenance) ----
+        db.execute("DELETE FROM machine_logs WHERE report_id=?", (rid,))
+        m_id = f.getlist("machine_id")
+        m_name = f.getlist("machine_name")
+        m_out = f.getlist("machine_output")
+        m_units = f.getlist("machine_units")
+        m_maint = f.getlist("machine_maint")
+        # labour per machine = wages of workers assigned to it (computed, not typed)
+        # build a quick day-rate lookup for assigned workers
+        wage_by_machine = {}
+        for sl, nm, wid, att, hrs, ot, mach in wrows:
+            if not mach or att == "absent":
+                continue
+            wm = db.execute("SELECT pay_type, pay_rate, ot_rate FROM worker_master WHERE id=?",
+                            (wid,)).fetchone() if wid else None
+            if not wm:
+                continue
+            rate = wm["pay_rate"] or 0
+            otr = wm["ot_rate"] or 0
+            if wm["pay_type"] == "monthly":
+                day = rate / 30.0
+            else:
+                day = rate * (0.5 if att == "half" else 1)
+            wage_by_machine[mach] = wage_by_machine.get(mach, 0) + day + (ot or 0) * otr
         for i in range(len(m_id)):
             try:
                 mid = int(m_id[i]) if m_id[i].strip() else None
@@ -708,73 +693,60 @@ def machine_production():
                 continue
             out = float(m_out[i]) if i < len(m_out) and m_out[i].strip() else 0
             un = float(m_units[i]) if i < len(m_units) and m_units[i].strip() else 0
-            lab = float(m_lab[i]) if i < len(m_lab) and m_lab[i].strip() else 0
             mnt = float(m_maint[i]) if i < len(m_maint) and m_maint[i].strip() else 0
-            name = m_name[i] if i < len(m_name) else ""
+            lab = round(wage_by_machine.get(mid, 0), 2)   # auto from assigned workers
             if out or un or lab or mnt:
                 db.execute(
                     """INSERT INTO machine_logs (report_id,log_date,machine_id,machine_name,
-                       output_kg,units,labour_cost,maint_cost) VALUES (NULL,?,?,?,?,?,?,?)""",
-                    (log_date, mid, name, out, un, lab, mnt))
-                if lab > 0:
-                    logic.post_finance(db, log_date, "expense", "salary", lab,
-                                       description=f"Machine labour: {name}",
-                                       source="machine_production", ref_id=date_key,
-                                       user_id=session.get("user_id"))
+                       output_kg,units,labour_cost,maint_cost) VALUES (?,?,?,?,?,?,?,?)""",
+                    (rid, f.get("report_date"), mid,
+                     m_name[i] if i < len(m_name) else "", out, un, lab, mnt))
+                # only maintenance posts to finance here (labour already counted via payroll/attendance)
                 if mnt > 0:
-                    logic.post_finance(db, log_date, "expense", "maintenance", mnt,
-                                       description=f"Machine maintenance: {name}",
-                                       source="machine_production", ref_id=date_key,
-                                       user_id=session.get("user_id"))
+                    logic.post_finance(db, f.get("report_date"), "expense", "maintenance", mnt,
+                                       description=f"Machine maintenance: {m_name[i] if i<len(m_name) else ''}",
+                                       source="machine", ref_id=rid, user_id=session.get("user_id"))
+        # other/general maintenance (free entry in Loading/Attendance section)
+        other_maint = num(f, "other_maint_cost", float, 0)
+        if other_maint > 0:
+            logic.post_finance(db, f.get("report_date"), "expense", "maintenance", other_maint,
+                               description=f"Other maintenance: {f.get('maintenance') or ''}"[:120],
+                               source="prodmaint", ref_id=rid, user_id=session.get("user_id"))
         db.commit()
-        flash("Machine production saved.", "ok")
-        return redirect(url_for("machine_production", date=log_date))
+        flash("Production report saved (stock updated).", "ok")
+        return redirect(url_for("production_list"))
 
-    sel_date = request.args.get("date") or date.today().isoformat()
-    machines = db.execute(
-        "SELECT * FROM machine_master WHERE active=1 OR active IS NULL ORDER BY name"
-    ).fetchall()
-    total_capacity = sum((m["capacity_kg"] or 0) for m in machines)
-
-    existing = db.execute(
-        "SELECT * FROM machine_logs WHERE log_date=? AND report_id IS NULL", (sel_date,)
-    ).fetchall()
-    existing_map = {x["machine_id"]: x for x in existing}
-
-    # Suggested total output = that date's crushing+cleaning production (from daily reports), if any
-    suggested_row = db.execute(
-        "SELECT COALESCE(SUM(crushing_total_kg+cleaning_total_kg),0) s FROM reports WHERE report_date=?",
-        (sel_date,),
-    ).fetchone()
-    suggested_output = round(suggested_row["s"] or 0, 2)
-    existing_total = round(sum((x["output_kg"] or 0) for x in existing), 2)
-    total_output = existing_total if existing else suggested_output
-
-    machines_data = []
-    for m in machines:
-        ex = existing_map.get(m["id"])
-        machines_data.append(dict(
-            id=m["id"], name=m["name"], capacity_kg=m["capacity_kg"] or 0,
-            output_kg=(ex["output_kg"] if ex else None),
-            units=(ex["units"] if ex else None),
-            labour_cost=(ex["labour_cost"] if ex else None),
-            maint_cost=(ex["maint_cost"] if ex else None),
-        ))
-    machines_json = json.dumps(machines_data)
-
-    history = db.execute(
-        """SELECT log_date, COUNT(DISTINCT machine_id) n_machines,
-                  SUM(output_kg) out_kg, SUM(units) units,
-                  SUM(labour_cost) lab, SUM(maint_cost) maint
-           FROM machine_logs WHERE report_id IS NULL
-           GROUP BY log_date ORDER BY log_date DESC LIMIT 30"""
-    ).fetchall()
-
-    return render_template(
-        "machine_production.html", sel_date=sel_date, machines_json=machines_json,
-        total_capacity=total_capacity, suggested_output=suggested_output,
-        total_output=total_output, history=history, today=date.today().isoformat(),
-    )
+    edit_id = request.args.get("edit")
+    report = None
+    lines = workers = mlogs = []
+    if edit_id:
+        report = db.execute("SELECT * FROM reports WHERE id=?", (edit_id,)).fetchone()
+        lines = db.execute("SELECT * FROM production_lines WHERE report_id=?", (edit_id,)).fetchall()
+        workers = db.execute("SELECT * FROM workers WHERE report_id=? ORDER BY slno", (edit_id,)).fetchall()
+        mlogs = db.execute("SELECT * FROM machine_logs WHERE report_id=?", (edit_id,)).fetchall()
+    lines_json = json.dumps([dict(category=l["category"], name=l["name"], theli=l["theli"],
+                                  theli_weight=l["theli_weight"], total_kg=l["total_kg"]) for l in lines])
+    workers_json = json.dumps([dict(slno=w["slno"], name=w["name"],
+                                    worker_id=(w["worker_id"] if "worker_id" in w.keys() else None),
+                                    attendance=(w["attendance"] if "attendance" in w.keys() else "present"),
+                                    hours=(w["hours"] if "hours" in w.keys() else 0),
+                                    ot_hours=(w["ot_hours"] if "ot_hours" in w.keys() else 0),
+                                    machine_id=(w["machine_id"] if "machine_id" in w.keys() else None)) for w in workers])
+    materials = db.execute("SELECT * FROM raw_materials WHERE active=1 ORDER BY name").fetchall()
+    master_workers = db.execute("SELECT * FROM worker_master WHERE active=1 OR active IS NULL ORDER BY name").fetchall()
+    master_workers_json = json.dumps([dict(id=w["id"], name=w["name"],
+                                           default_hours=w["default_hours"]) for w in master_workers])
+    master_machines = db.execute("SELECT * FROM machine_master WHERE active=1 OR active IS NULL ORDER BY name").fetchall()
+    machines_json = json.dumps([dict(id=m["id"], name=m["name"], capacity_kg=m["capacity_kg"]) for m in master_machines])
+    mlogs_json = json.dumps([dict(machine_id=x["machine_id"], machine_name=x["machine_name"],
+                                  output_kg=x["output_kg"], units=x["units"],
+                                  labour_cost=x["labour_cost"], maint_cost=x["maint_cost"]) for x in mlogs])
+    return render_template("production_entry.html", report=report,
+                           materials=materials, master_workers=master_workers,
+                           master_workers_json=master_workers_json,
+                           machines_json=machines_json, mlogs_json=mlogs_json,
+                           lines_json=lines_json, workers_json=workers_json,
+                           today=date.today().isoformat())
 
 
 @app.route("/production/delete/<int:rid>", methods=["POST"])
@@ -1195,6 +1167,180 @@ def api_finance():
                         summary=summary))
 
 
+# ================================================================ MONTHLY EXCEL REPORT
+@app.route("/report/excel")
+@require("finance")
+def report_excel():
+    import openpyxl, io, calendar
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from flask import send_file
+    db = g.db
+    month = request.args.get("month") or date.today().strftime("%Y-%m")
+    s = month + "-01"
+    y, m = int(month[:4]), int(month[5:7])
+    last = calendar.monthrange(y, m)[1]
+    e = f"{month}-{last:02d}"
+
+    wb = openpyxl.Workbook()
+    hdr_font = Font(bold=True, color="FFFFFF")
+    hdr_fill = PatternFill("solid", fgColor="7C6CF0")
+    title_font = Font(bold=True, size=14)
+
+    def style_header(ws, row, ncols):
+        for c in range(1, ncols + 1):
+            cell = ws.cell(row=row, column=c)
+            cell.font = hdr_font
+            cell.fill = hdr_fill
+            cell.alignment = Alignment(horizontal="center")
+
+    ws = wb.active
+    ws.title = "Summary"
+    ws["A1"] = f"Sainath Agro Industries — Monthly Report {month}"
+    ws["A1"].font = title_font
+    summ = logic.finance_summary(db, s, e)
+    prod = db.execute(
+        """SELECT COALESCE(SUM(crushing_total_kg),0) cr, COALESCE(SUM(cleaning_total_kg),0) cl,
+                  COALESCE(SUM(waste_kg),0) wa, COALESCE(SUM(consumption),0) un
+           FROM reports WHERE report_date BETWEEN ? AND ?""", (s, e)).fetchone()
+    sales_v = db.execute("SELECT COALESCE(SUM(total_inr),0) v FROM sales WHERE sale_date BETWEEN ? AND ?", (s, e)).fetchone()["v"]
+    rows = [
+        ("", ""),
+        ("PRODUCTION", ""),
+        ("Crushing output (kg)", round(prod["cr"], 1)),
+        ("Cleaning output (kg)", round(prod["cl"], 1)),
+        ("Waste (kg)", round(prod["wa"], 1)),
+        ("Electricity units", round(prod["un"], 1)),
+        ("", ""),
+        ("MONEY", ""),
+        ("Total sales (INR)", round(sales_v, 2)),
+        ("Total income (INR)", round(summ.get("income", 0), 2)),
+        ("Total expense (INR)", round(summ.get("expense", 0), 2)),
+        ("Profit (INR)", round(summ.get("profit", 0), 2)),
+    ]
+    r = 3
+    for label, val in rows:
+        ws.cell(row=r, column=1, value=label)
+        ws.cell(row=r, column=2, value=val)
+        if label in ("PRODUCTION", "MONEY"):
+            ws.cell(row=r, column=1).font = Font(bold=True)
+        r += 1
+    ws.column_dimensions["A"].width = 26
+    ws.column_dimensions["B"].width = 16
+
+    ws2 = wb.create_sheet("Sales")
+    ws2.append(["Date", "Customer", "Product", "Qty kg", "Rate", "Total INR", "Received INR", "Vehicle"])
+    style_header(ws2, 1, 8)
+    for row in db.execute(
+        """SELECT sa.sale_date, COALESCE(c.company_name,c.name) cust, p.name prod,
+                  sa.quantity_kg, sa.rate, sa.total_inr, sa.received, sa.vehicle_no
+           FROM sales sa LEFT JOIN customers c ON c.id=sa.customer_id
+           LEFT JOIN products p ON p.id=sa.product_id
+           WHERE sa.sale_date BETWEEN ? AND ? ORDER BY sa.sale_date""", (s, e)).fetchall():
+        ws2.append([row["sale_date"], row["cust"] or "", row["prod"] or "", row["quantity_kg"],
+                    row["rate"], row["total_inr"], row["received"], row["vehicle_no"] or ""])
+    for col in "ABCDEFGH":
+        ws2.column_dimensions[col].width = 14
+
+    ws3 = wb.create_sheet("Expenses")
+    ws3.append(["Date", "Category", "Amount INR", "Source", "Description"])
+    style_header(ws3, 1, 5)
+    for row in db.execute(
+        """SELECT entry_date, category, amount_inr, source, description FROM finance
+           WHERE direction='expense' AND entry_date BETWEEN ? AND ? ORDER BY entry_date""", (s, e)).fetchall():
+        ws3.append([row["entry_date"], row["category"], row["amount_inr"], row["source"], row["description"] or ""])
+    for col in "ABCDE":
+        ws3.column_dimensions[col].width = 16
+
+    ws4 = wb.create_sheet("Wages")
+    ws4.append(["Worker", "Present", "Half", "OT hrs", "Base INR", "OT INR", "Total INR"])
+    style_header(ws4, 1, 7)
+    for wid, w in _compute_wages(db, s, e, month).items():
+        ws4.append([w["name"], w["present"], w["half"], w["ot_hours"], w["base"], w["ot_pay"], w["total"]])
+    for col in "ABCDEFG":
+        ws4.column_dimensions[col].width = 13
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                     download_name=f"Sainath_Report_{month}.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+# ================================================================ PARTY LEDGER (receivables / payables)
+def _party_balances(db, party_type):
+    """Compute outstanding balance per party.
+    customer: sales total - received - payments_in  => they owe us (receivable)
+    supplier: procurement total - paid - payments_out => we owe them (payable)"""
+    rows = []
+    if party_type == "customer":
+        parties = db.execute("SELECT id, COALESCE(company_name,name) nm FROM customers ORDER BY nm").fetchall()
+        for p in parties:
+            billed = db.execute("SELECT COALESCE(SUM(total_inr),0) v FROM sales WHERE customer_id=?", (p["id"],)).fetchone()["v"]
+            recv_inline = db.execute("SELECT COALESCE(SUM(received),0) v FROM sales WHERE customer_id=?", (p["id"],)).fetchone()["v"]
+            pay = db.execute("SELECT COALESCE(SUM(amount_inr),0) v FROM payments WHERE party_type='customer' AND party_id=? AND direction='in'", (p["id"],)).fetchone()["v"]
+            bal = round(billed - recv_inline - pay, 2)
+            if billed or recv_inline or pay:
+                rows.append(dict(id=p["id"], name=p["nm"], billed=round(billed, 2),
+                                 settled=round(recv_inline + pay, 2), balance=bal))
+    else:
+        parties = db.execute("SELECT id, COALESCE(company_name,name) nm FROM suppliers ORDER BY nm").fetchall()
+        for p in parties:
+            billed = db.execute("SELECT COALESCE(SUM(total_cost),0) v FROM procurement WHERE supplier_id=?", (p["id"],)).fetchone()["v"]
+            paid_inline = db.execute("SELECT COALESCE(SUM(paid),0) v FROM procurement WHERE supplier_id=?", (p["id"],)).fetchone()["v"]
+            pay = db.execute("SELECT COALESCE(SUM(amount_inr),0) v FROM payments WHERE party_type='supplier' AND party_id=? AND direction='out'", (p["id"],)).fetchone()["v"]
+            bal = round(billed - paid_inline - pay, 2)
+            if billed or paid_inline or pay:
+                rows.append(dict(id=p["id"], name=p["nm"], billed=round(billed, 2),
+                                 settled=round(paid_inline + pay, 2), balance=bal))
+    return rows
+
+
+@app.route("/ledger", methods=["GET", "POST"])
+@require("finance")
+def ledger():
+    db = g.db
+    if request.method == "POST":
+        f = request.form
+        pt = f.get("party_type")
+        pid = f.get("party_id")
+        amt = num(f, "amount_inr", float, 0)
+        direction = "in" if pt == "customer" else "out"
+        if pid and amt > 0:
+            nm = db.execute(
+                f"SELECT COALESCE(company_name,name) nm FROM {'customers' if pt=='customer' else 'suppliers'} WHERE id=?",
+                (pid,)).fetchone()
+            db.execute(
+                """INSERT INTO payments (pay_date, party_type, party_id, party_name, direction,
+                   amount_inr, method, note, created_by) VALUES (?,?,?,?,?,?,?,?,?)""",
+                (f.get("pay_date") or date.today().isoformat(), pt, pid,
+                 nm["nm"] if nm else "", direction, amt, f.get("method"), f.get("note"),
+                 session.get("user_id")))
+            # payment received from customer = income; payment to supplier = expense
+            if direction == "in":
+                logic.post_finance(db, f.get("pay_date") or date.today().isoformat(), "income",
+                                   "payment", amt, description=f"Payment from {nm['nm'] if nm else ''}",
+                                   source="payment", user_id=session.get("user_id"))
+            else:
+                logic.post_finance(db, f.get("pay_date") or date.today().isoformat(), "expense",
+                                   "payment", amt, description=f"Payment to {nm['nm'] if nm else ''}",
+                                   source="payment", user_id=session.get("user_id"))
+            db.commit()
+            flash("Payment recorded.", "ok")
+        return redirect(url_for("ledger", tab=f.get("tab", "customer")))
+
+    tab = request.args.get("tab", "customer")
+    customers = _party_balances(db, "customer")
+    suppliers = _party_balances(db, "supplier")
+    recv_total = round(sum(r["balance"] for r in customers if r["balance"] > 0), 2)
+    pay_total = round(sum(r["balance"] for r in suppliers if r["balance"] > 0), 2)
+    cust_list = db.execute("SELECT id, COALESCE(company_name,name) nm FROM customers ORDER BY nm").fetchall()
+    supp_list = db.execute("SELECT id, COALESCE(company_name,name) nm FROM suppliers ORDER BY nm").fetchall()
+    return render_template("ledger.html", tab=tab, customers=customers, suppliers=suppliers,
+                           recv_total=recv_total, pay_total=pay_total,
+                           cust_list=cust_list, supp_list=supp_list)
+
+
 # ================================================================ PAYROLL
 @app.route("/payroll", methods=["GET", "POST"])
 @require("finance")
@@ -1214,6 +1360,27 @@ def payroll():
     post_date = min(e, date.today().isoformat())
 
     # POST = save a per-worker adjustment (edit)
+    if request.method == "POST" and request.form.get("action") == "advance":
+        wid = request.form.get("worker_id")
+        kind = request.form.get("kind")  # 'given' or 'repaid'
+        amt = num(request.form, "amount", float, 0)
+        adate = request.form.get("adv_date") or date.today().isoformat()
+        note = request.form.get("note")
+        if wid and amt > 0 and kind in ("given", "repaid"):
+            db.execute(
+                """INSERT INTO worker_advances (worker_id, entry_date, kind, amount, note, created_by)
+                   VALUES (?,?,?,?,?,?)""",
+                (wid, adate, kind, amt, note, session.get("user_id")))
+            # advance GIVEN = money out now → post to finance. repayment does NOT double-count.
+            if kind == "given":
+                wname = db.execute("SELECT name FROM worker_master WHERE id=?", (wid,)).fetchone()
+                logic.post_finance(db, adate, "expense", "salary", amt,
+                                   description=f"Advance (udhar) — {wname['name'] if wname else ''}",
+                                   source="advance", ref_id=int(wid), user_id=session.get("user_id"))
+            db.commit()
+            flash("Advance recorded." if kind == "given" else "Repayment recorded.", "ok")
+        return redirect(url_for("payroll", month=month))
+
     if request.method == "POST" and request.form.get("action") == "adjust":
         wid = request.form.get("worker_id")
         amt = num(request.form, "amount", float, 0)
@@ -1247,8 +1414,46 @@ def payroll():
     already = db.execute(
         "SELECT COUNT(*) FROM finance WHERE source='payroll' AND ref_id=?",
         (month_ref(month),)).fetchone()[0]
+    # ---- advance (udhar) ledger ----
+    # this-month given/repaid per worker
+    adv_month = {}
+    for r in db.execute(
+        """SELECT worker_id, kind, SUM(amount) amt FROM worker_advances
+           WHERE entry_date BETWEEN ? AND ? GROUP BY worker_id, kind""", (s, e)).fetchall():
+        adv_month.setdefault(r["worker_id"], {"given": 0, "repaid": 0})[r["kind"]] = r["amt"] or 0
+    # running outstanding balance per worker (all-time up to end of month)
+    adv_bal = {}
+    for r in db.execute(
+        """SELECT worker_id,
+                  SUM(CASE WHEN kind='given' THEN amount ELSE -amount END) bal
+           FROM worker_advances WHERE entry_date<=? GROUP BY worker_id""", (e,)).fetchall():
+        adv_bal[r["worker_id"]] = round(r["bal"] or 0, 2)
+    # merge advance data into each wage row and compute net payable
+    total_out = 0.0
+    for wid, w in wages.items():
+        m = adv_month.get(wid, {"given": 0, "repaid": 0})
+        w["udhar_taken"] = round(m.get("given", 0), 2)
+        w["udhar_repaid"] = round(m.get("repaid", 0), 2)
+        w["udhar_balance"] = adv_bal.get(wid, 0)   # running outstanding
+        # net payable this month = earned − outstanding balance (capped at 0)
+        w["net_payable"] = round(max(w["total"] - w["udhar_balance"], 0), 2)
+        total_out += w["udhar_balance"] if w["udhar_balance"] > 0 else 0
+    total_earned = grand
+    total_advance_out = round(total_out, 2)
+    total_net = round(sum(w["net_payable"] for w in wages.values()), 2)
+    # machine labour for the month (entered on Daily Report per machine)
+    mlabour = db.execute(
+        """SELECT machine_name, SUM(labour_cost) lab FROM machine_logs
+           WHERE log_date BETWEEN ? AND ? GROUP BY machine_name HAVING lab>0""",
+        (s, e)).fetchall()
+    machine_labour = [dict(name=r["machine_name"], labour=round(r["lab"], 2)) for r in mlabour]
+    machine_labour_total = round(sum(m["labour"] for m in machine_labour), 2)
     return render_template("payroll.html", wages=list(wages.values()), month=month,
-                           grand=grand, already_posted=already > 0)
+                           grand=grand, already_posted=already > 0,
+                           machine_labour=machine_labour,
+                           machine_labour_total=machine_labour_total,
+                           total_earned=total_earned, total_advance_out=total_advance_out,
+                           total_net=total_net)
 
 
 def month_ref(month):

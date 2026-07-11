@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Ledger · Sainath Agro ERP{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h2>Party Ledger</h2><div class="range-label">Who owes you (receivables) &amp; who you owe (payables)</div></div>
+</div>
+
+<div class="eff-strip" style="margin-bottom:16px">
+  <div class="eff"><span class="eff-l">Receivable (customers owe you)</span><span class="eff-v" style="color:#22c55e">₹{{ '{:,.0f}'.format(recv_total) }}</span></div>
+  <div class="eff"><span class="eff-l">Payable (you owe suppliers)</span><span class="eff-v" style="color:#f59e0b">₹{{ '{:,.0f}'.format(pay_total) }}</span></div>
+</div>
+
+<div class="period-buttons" style="margin-bottom:14px">
+  <a href="{{ url_for('ledger', tab='customer') }}"><button class="{{ 'active' if tab=='customer' }}">Customers (Receivable)</button></a>
+  <a href="{{ url_for('ledger', tab='supplier') }}"><button class="{{ 'active' if tab=='supplier' }}">Suppliers (Payable)</button></a>
+</div>
+
+{% set rows = customers if tab=='customer' else suppliers %}
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>{{ 'Customer' if tab=='customer' else 'Supplier' }}</th>
+    <th>{{ 'Total billed' if tab=='customer' else 'Total purchased' }} ₹</th>
+    <th>{{ 'Received' if tab=='customer' else 'Paid' }} ₹</th>
+    <th>Balance ₹</th><th>Action</th></tr></thead>
+  <tbody>
+    {% for r in rows %}
+    <tr><td>{{ r.name }}</td>
+      <td>{{ '{:,.0f}'.format(r.billed) }}</td>
+      <td>{{ '{:,.0f}'.format(r.settled) }}</td>
+      <td><b class="{{ 'neg' if r.balance>0 else 'pos' }}">{{ '{:,.0f}'.format(r.balance) }}</b></td>
+      <td><button class="link" onclick="payForm({{ r.id }},'{{ r.name }}')">{{ 'Receive' if tab=='customer' else 'Pay' }}</button></td></tr>
+    {% endfor %}
+    {% if not rows %}<tr><td colspan="5" class="empty">No {{ 'sales' if tab=='customer' else 'purchases' }} yet.</td></tr>{% endif %}
+  </tbody>
+</table></div>
+<small style="color:var(--muted)">Balance = billed − settled. Positive = {{ 'customer owes you' if tab=='customer' else 'you owe supplier' }}. Recording a payment updates Finance automatically.</small>
+
+<div class="modal" id="payModal"><div class="modal-card">
+  <h3 id="payTitle">Record Payment</h3>
+  <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="party_type" value="{{ tab }}"><input type="hidden" name="tab" value="{{ tab }}">
+    <input type="hidden" name="party_id" id="payPid">
+    <label>Date<input type="date" name="pay_date" id="payDate"></label>
+    <label>Amount ₹<input type="number" step="any" name="amount_inr" id="payAmount" required></label>
+    <label>Method<select name="method"><option>cash</option><option>bank</option><option>upi</option><option>cheque</option></select></label>
+    <label>Note<input name="note" placeholder="optional"></label>
+    <div class="form-actions"><button class="btn-primary">Save</button><button type="button" class="btn-cancel" onclick="document.getElementById('payModal').style.display='none'">Cancel</button></div>
+  </form>
+</div></div>
+<script>
+function payForm(id,name){document.getElementById('payPid').value=id;
+  document.getElementById('payTitle').textContent='{{ "Receive from" if tab=="customer" else "Pay" }} '+name;
+  document.getElementById('payDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('payAmount').value='';
+  document.getElementById('payModal').style.display='flex';}
+</script>
+{% endblock %}

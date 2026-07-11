@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS reports (
     loading_grit         TEXT,
     loading_bhunar       TEXT,
     maintenance          TEXT,
+    other_maint_cost     REAL DEFAULT 0,
     left_with_note       INTEGER DEFAULT 0,
     half_attendance      TEXT,
     on_leave_names       TEXT,
@@ -177,6 +178,7 @@ CREATE TABLE IF NOT EXISTS workers (
     attendance TEXT DEFAULT 'present',  -- present | absent | half
     hours      REAL DEFAULT 0,          -- custom hours worked
     ot_hours   REAL DEFAULT 0,          -- overtime hours
+    machine_id INTEGER,                 -- which machine this worker was on
     FOREIGN KEY(report_id) REFERENCES reports(id) ON DELETE CASCADE
 );
 
@@ -228,6 +230,18 @@ CREATE TABLE IF NOT EXISTS electricity_bills (
     note          TEXT,
     created_at    TEXT DEFAULT (datetime('now')),
     UNIQUE(month)
+);
+
+-- ------------------------------------------------------- WORKER ADVANCES (UDHAR)
+CREATE TABLE IF NOT EXISTS worker_advances (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    worker_id   INTEGER NOT NULL,
+    entry_date  TEXT NOT NULL,
+    kind        TEXT NOT NULL,           -- 'given' (advance out) | 'repaid' (worker pays back)
+    amount      REAL NOT NULL DEFAULT 0,
+    note        TEXT,
+    created_by  INTEGER,
+    created_at  TEXT DEFAULT (datetime('now'))
 );
 
 -- ------------------------------------------------------- WAGE ADJUSTMENTS

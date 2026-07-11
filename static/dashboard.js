@@ -7,7 +7,7 @@ function fmtC(n){ // compact for money
 function setText(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 
-let state={period:"7d",start:null,end:null,shift:"combined"},charts={},layout=[],metrics=[],lastData=null,editing=false,uid=0;
+let state={period:"7d",start:null,end:null,shift:"combined"},charts={},layout=[],metrics=[],lastData=null,editing=false,uid=0,hiddenKpis=[];
 const COLORS={green:"#22c55e",amber:"#f59e0b",blue:"#0891b2",night:"#6366f1",red:"#f87171",violet:"#a78bfa"};
 
 function chartInk(){return css('--muted')||'#888';}
@@ -52,12 +52,18 @@ function badge(id,pct,goodUp){
 async function loadLayout(){
   const r=await fetch(`/api/dashboard/layout?variant=${VARIANT}`);const j=await r.json();
   layout=j.layout||[];metrics=j.metrics||[];
+  // hidden KPI list is stored as a special meta entry in the layout array
+  const meta=layout.find(x=>x.id==="__kpimeta__");
+  hiddenKpis=meta&&meta.hiddenKpis?meta.hiddenKpis:[];
+  layout=layout.filter(x=>x.id!=="__kpimeta__");
   const sel=document.getElementById("wMetric");
   if(sel)sel.innerHTML=metrics.map(m=>`<option value="${m.key}">${m.label}</option>`).join("");
+  applyKpiVisibility();
 }
 async function saveLayout(){
+  const out=layout.concat([{id:"__kpimeta__",hiddenKpis:hiddenKpis}]);
   await fetch(`/api/dashboard/layout?variant=${VARIANT}`,{method:"POST",
-    headers:{"Content-Type":"application/json","X-CSRF-Token":(document.querySelector("meta[name=csrf-token]")||{}).content},body:JSON.stringify({layout})});
+    headers:{"Content-Type":"application/json","X-CSRF-Token":(document.querySelector("meta[name=csrf-token]")||{}).content},body:JSON.stringify({layout:out})});
 }
 function metricLabel(k){const m=metrics.find(x=>x.key===k);return m?m.label:k;}
 function metricKind(k){const m=metrics.find(x=>x.key===k);return m?m.kind:"series";}
@@ -106,12 +112,21 @@ function renderWidgets(){
     card.dataset.wid=w.id;
     card.innerHTML=`<div class="wcard-head"><h3>${metricLabel(w.metric)}</h3>
       <div class="wtools">
+        <select class="wt-type" title="Chart type">
+          <option value="auto"${w.type==="auto"?" selected":""}>Auto</option>
+          <option value="bar"${w.type==="bar"?" selected":""}>Bar</option>
+          <option value="hbar"${w.type==="hbar"?" selected":""}>H-Bar</option>
+          <option value="line"${w.type==="line"?" selected":""}>Line</option>
+          <option value="doughnut"${w.type==="doughnut"?" selected":""}>Doughnut</option>
+        </select>
         <button type="button" class="wt" data-act="size">${w.size==="large"?"⬍":"⬌"}</button>
         <button type="button" class="wt" data-act="hide">${w.hidden?"🙈":"👁"}</button>
         <button type="button" class="wt" data-act="del">✕</button>
       </div></div><div class="wcanvas"><canvas></canvas></div>`;
     grid.appendChild(card);
     buildChart(card.querySelector("canvas"),w);
+    const typeSel=card.querySelector(".wt-type");
+    if(typeSel)typeSel.onchange=e=>{e.stopPropagation();w.type=typeSel.value;renderWidgets();};
     card.querySelectorAll(".wt").forEach(b=>b.onclick=e=>{e.stopPropagation();
       const a=b.dataset.act;
       if(a==="size")w.size=w.size==="large"?"small":"large";
@@ -126,23 +141,31 @@ function renderWidgets(){
 
 function buildChart(canvas,w){
   if(!lastData)return;const d=lastData,labels=d.series.map(s=>s.date);
-  const kind=metricKind(w.metric),auto=t=>w.type==="auto"?t:w.type;let cfg=null;
+  const kind=metricKind(w.metric);
+  // "hbar" is a horizontal bar: render as bar + indexAxis y
+  const isH=w.type==="hbar";
+  const auto=t=>w.type==="auto"?t:(w.type==="hbar"?"bar":w.type);
+  const H=o=>{o=o||{};if(isH)o.horizontal=true;return o;};
+  let cfg=null;
   if(kind==="consumption"){cfg={type:auto("bar"),data:{labels,datasets:[
     {label:"Day",data:d.series.map(s=>s.day_consumption),backgroundColor:COLORS.amber,borderRadius:6},
-    {label:"Night",data:d.series.map(s=>s.night_consumption),backgroundColor:COLORS.night,borderRadius:6}]},options:opts({stacked:true})};}
+    {label:"Night",data:d.series.map(s=>s.night_consumption),backgroundColor:COLORS.night,borderRadius:6}]},options:opts(H({stacked:true}))};}
   else if(kind==="inputoutput"){cfg={type:auto("bar"),data:{labels,datasets:[
     {label:"Input KG",data:d.series.map(s=>s.input_kg),backgroundColor:COLORS.amber,borderRadius:6},
-    {label:"Crushing Output KG",data:d.series.map(s=>s.output),backgroundColor:COLORS.green,borderRadius:6}]},options:opts()};}
+    {label:"Crushing Output KG",data:d.series.map(s=>s.output),backgroundColor:COLORS.green,borderRadius:6}]},options:opts(H())};}
   else if(kind==="finance"&&d.finance){cfg={type:auto("bar"),data:{labels:["Income","Expense","Profit"],datasets:[
-    {data:[d.finance.income,d.finance.expense,d.finance.profit],backgroundColor:[COLORS.green,COLORS.red,COLORS.blue],borderRadius:6}]},options:opts({noLegend:true})};}
+    {data:[d.finance.income,d.finance.expense,d.finance.profit],backgroundColor:[COLORS.green,COLORS.red,COLORS.blue],borderRadius:6}]},options:opts(H({noLegend:true}))};}
   else if(kind==="crushprod"){cfg={type:auto("bar"),data:{labels:d.crushing_products.map(p=>p.name),datasets:[
-    {label:"KG",data:d.crushing_products.map(p=>p.kg),backgroundColor:COLORS.green,borderRadius:6}]},options:opts({horizontal:true})};}
+    {label:"KG",data:d.crushing_products.map(p=>p.kg),backgroundColor:COLORS.green,borderRadius:6}]},options:opts(H({horizontal:w.type!=="bar"}))};}
   else if(kind==="cleanprod"){cfg={type:auto("bar"),data:{labels:d.cleaning_products.map(p=>p.name),datasets:[
-    {label:"KG",data:d.cleaning_products.map(p=>p.kg),backgroundColor:COLORS.night,borderRadius:6}]},options:opts({horizontal:true})};}
+    {label:"KG",data:d.cleaning_products.map(p=>p.kg),backgroundColor:COLORS.night,borderRadius:6}]},options:opts(H({horizontal:w.type!=="bar"}))};}
   else{const map={crushing:"crushing",cleaning:"cleaning",waste:"waste"};const field=map[w.metric]||"crushing";
     const color=w.metric==="cleaning"?COLORS.night:(w.metric==="waste"?COLORS.red:COLORS.green);
     cfg={type:auto("line"),data:{labels,datasets:[{label:metricLabel(w.metric),data:d.series.map(s=>s[field]),
-      borderColor:color,backgroundColor:color+"33",fill:true,tension:.4,pointRadius:0}]},options:opts()};}
+      borderColor:color,backgroundColor:color+"33",fill:true,tension:.4,pointRadius:0}]},options:opts(H())};}
+  // doughnut needs single-color-per-slice; fix palette if user picked doughnut on a series metric
+  if(w.type==="doughnut"&&cfg.data.datasets.length===1&&cfg.data.datasets[0].data.length){
+    cfg.data.datasets[0].backgroundColor=[COLORS.green,COLORS.night,COLORS.amber,COLORS.red,COLORS.blue,"#a78bfa","#f472b6"];}
   charts[w.id]=new Chart(canvas,cfg);
 }
 function opts(o={}){const c={responsive:true,maintainAspectRatio:false,
@@ -165,9 +188,38 @@ function reorderDOM(){const order=[...document.querySelectorAll("#chartGrid .cha
   layout.sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id));}
 
 function enterEdit(){editing=true;document.getElementById("editBar").style.display="flex";
-  document.getElementById("editDashBtn").style.display="none";renderWidgets();}
+  document.getElementById("editDashBtn").style.display="none";renderWidgets();renderKpiEdit();}
 function exitEdit(save){editing=false;document.getElementById("editBar").style.display="none";
-  document.getElementById("editDashBtn").style.display="";if(save)saveLayout();renderWidgets();}
+  document.getElementById("editDashBtn").style.display="";if(save)saveLayout();renderWidgets();renderKpiEdit();}
+
+// ---- KPI card editability (hide/show individual bento cards) ----
+function applyKpiVisibility(){
+  document.querySelectorAll(".bento-card").forEach(c=>{
+    const m=c.dataset.metric;
+    if(hiddenKpis.includes(m)&&!editing)c.style.display="none";else c.style.display="";
+  });
+}
+function renderKpiEdit(){
+  document.querySelectorAll(".bento-card").forEach(c=>{
+    let btn=c.querySelector(".kpi-hide-btn");
+    if(editing){
+      c.classList.add("kpi-editing");
+      if(!btn){
+        btn=document.createElement("button");btn.type="button";btn.className="kpi-hide-btn wt";
+        btn.style.cssText="position:absolute;top:6px;right:6px;z-index:5";
+        c.style.position="relative";c.appendChild(btn);
+        btn.onclick=e=>{e.stopPropagation();const m=c.dataset.metric;
+          if(hiddenKpis.includes(m))hiddenKpis=hiddenKpis.filter(x=>x!==m);else hiddenKpis.push(m);
+          renderKpiEdit();};
+      }
+      const hidden=hiddenKpis.includes(c.dataset.metric);
+      btn.textContent=hidden?"🙈":"👁";c.classList.toggle("dimmed",hidden);
+    }else{
+      c.classList.remove("kpi-editing");if(btn)btn.remove();
+    }
+  });
+  applyKpiVisibility();
+}
 window.addWidget=function(){const m=document.getElementById("wMetric").value,ty=document.getElementById("wType").value,sz=document.getElementById("wSize").value;
   layout.push({id:m+"_"+(++uid),metric:m,type:ty,size:sz,hidden:false});
   document.getElementById("modal-widget").style.display="none";renderWidgets();};

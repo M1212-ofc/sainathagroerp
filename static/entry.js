@@ -25,7 +25,7 @@ function recalcTotals(){let ct=0,ck=0,lt=0,lk=0;
     if(cat==="crushing"){ct+=th;ck+=tot;}else{lt+=th;lk+=tot;}});
   ctTheli.textContent=+ct.toFixed(2);ctKg.textContent=+ck.toFixed(2);
   clTheli.textContent=+lt.toFixed(2);clKg.textContent=+lk.toFixed(2);
-  window._crushingKg=ck;              // expose crushing output for waste calc (cleaning is separate, excluded)
+  window._crushingKg=ck;              // expose crushing output for waste calc
   recalcWaste();}
 
 function addRow(line={}){const tr=document.createElement("tr");
@@ -57,6 +57,12 @@ if(typeof existingLines!=="undefined"&&existingLines.length)existingLines.forEac
 const wbody=document.getElementById("workersBody");
 const addSelect=document.getElementById("addWorkerSelect");
 const MW=(typeof masterWorkers!=="undefined")?masterWorkers:[];
+const MM_FORWORKER=(typeof masterMachines!=="undefined")?masterMachines:[];
+function machineOptions(sel){
+  let o='<option value="">— machine —</option>';
+  MM_FORWORKER.forEach(m=>{o+=`<option value="${m.id}"${String(sel)===String(m.id)?" selected":""}>${m.name}</option>`;});
+  return o;
+}
 function rebuildAddSelect(){
   const used=new Set([...wbody.querySelectorAll('input[name=worker_id]')].map(i=>i.value));
   addSelect.innerHTML='<option value="">— re-add a removed worker —</option>'+
@@ -75,6 +81,7 @@ function addWorkerRow(w){
       <option value="absent"${att==="absent"?" selected":""}>❌ Absent</option>
       <option value="half"${att==="half"?" selected":""}>◐ Half day</option>
     </select></td>
+    <td><select name="worker_machine">${machineOptions(w.machine_id)}</select></td>
     <td><input type="number" step="any" name="worker_hours" value="${hrs}" style="width:80px" placeholder="hrs"></td>
     <td><input type="number" step="any" name="worker_ot" value="${w.ot_hours||''}" style="width:80px" placeholder="OT"></td>
     <td><button type="button" class="row-del">×</button></td>`;
@@ -100,6 +107,54 @@ if(typeof existingWorkers!=="undefined"&&existingWorkers.length){
   MW.forEach(m=>addWorkerRow(m));
 }
 rebuildAddSelect();
+
+// ---- Machines (per-machine output/units/labour/maintenance) ----
+const mbody=document.getElementById("machinesBody");
+const mAddSelect=document.getElementById("addMachineSelect");
+const MM=(typeof masterMachines!=="undefined")?masterMachines:[];
+function rebuildMachineSelect(){
+  if(!mAddSelect)return;
+  const used=new Set([...mbody.querySelectorAll('input[name=machine_id]')].map(i=>i.value));
+  mAddSelect.innerHTML='<option value="">— re-add a removed machine —</option>'+
+    MM.filter(m=>!used.has(String(m.id))).map(m=>`<option value="${m.id}">${m.name}</option>`).join("");
+}
+function addMachineRow(m){
+  if(!mbody)return;
+  const mid=m.id||m.machine_id||'';
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td><input type="text" name="machine_name" value="${(m.name||m.machine_name||'').replace(/"/g,'&quot;')}" readonly style="background:transparent;border:none">
+      <input type="hidden" name="machine_id" value="${mid}"></td>
+    <td><input type="number" step="any" name="machine_output" value="${m.output_kg||''}" style="width:100px"></td>
+    <td><input type="number" step="any" name="machine_units" value="${m.units||''}" style="width:90px"></td>
+    <td><input type="number" step="any" name="machine_maint" value="${m.maint_cost||''}" style="width:110px" placeholder="0"></td>
+    <td><span class="mc-workers" data-mid="${mid}" style="font-weight:600;color:var(--primary)">0</span> assigned</td>
+    <td><button type="button" class="row-del">×</button></td>`;
+  mbody.appendChild(tr);
+  tr.querySelector(".row-del").addEventListener("click",()=>{tr.remove();rebuildMachineSelect();updateMachineWorkerCounts();});
+  rebuildMachineSelect();updateMachineWorkerCounts();
+}
+// live count of workers assigned to each machine
+function updateMachineWorkerCounts(){
+  document.querySelectorAll('.mc-workers').forEach(span=>{
+    const mid=span.dataset.mid;
+    const n=[...document.querySelectorAll('select[name=worker_machine]')].filter(s=>String(s.value)===String(mid)).length;
+    span.textContent=n;
+  });
+}
+document.addEventListener('change',e=>{if(e.target&&e.target.name==='worker_machine')updateMachineWorkerCounts();});
+if(mbody){
+  if(document.getElementById("addMachineBtn"))
+    document.getElementById("addMachineBtn").addEventListener("click",()=>{
+      const id=mAddSelect.value;if(!id)return;const m=MM.find(x=>String(x.id)===id);if(m)addMachineRow(m);});
+  if(document.getElementById("addAllMachines"))
+    document.getElementById("addAllMachines").addEventListener("click",()=>{
+      const used=new Set([...mbody.querySelectorAll('input[name=machine_id]')].map(i=>i.value));
+      MM.filter(m=>!used.has(String(m.id))).forEach(addMachineRow);});
+  // initial: existing logs (edit) or auto-load all machines
+  if(typeof existingMachines!=="undefined"&&existingMachines.length){existingMachines.forEach(addMachineRow);}
+  else{MM.forEach(m=>addMachineRow(m));}
+  rebuildMachineSelect();
+}
 
 // ---- Meter auto-derive ----
 const su=document.getElementById("startUnit"),cu=document.getElementById("closeUnit"),cons=document.getElementById("consumption");

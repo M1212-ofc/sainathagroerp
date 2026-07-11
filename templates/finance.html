@@ -2,7 +2,10 @@
 {% block title %}Finance · Sainath Agro ERP{% endblock %}
 {% block content %}
 <div class="page-head"><h2>Finance — Profit &amp; Loss</h2>
-  <a class="btn-export" href="{{ url_for('export_csv', what='finance', period='custom', start=start, end=end) }}">⬇ CSV</a></div>
+  <div style="display:flex;gap:8px">
+    <a class="btn-export" href="{{ url_for('export_csv', what='finance', period='custom', start=start, end=end) }}">⬇ CSV</a>
+    <a class="btn-export" href="{{ url_for('report_excel', month=start[:7]) }}">📊 Monthly Excel</a>
+  </div></div>
 <form class="controls" method="get">
   <div class="period-buttons">
     <button name="period" value="month" class="{{ 'active' if period=='month' }}">Month</button>

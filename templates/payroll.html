@@ -8,21 +8,67 @@
   </form>
 </div>
 
+<div class="eff-strip" style="margin-bottom:16px">
+  <div class="eff"><span class="eff-l">Total earned</span><span class="eff-v">₹{{ '{:,.0f}'.format(total_earned) }}</span></div>
+  <div class="eff"><span class="eff-l">Advance outstanding</span><span class="eff-v" style="color:#f59e0b">₹{{ '{:,.0f}'.format(total_advance_out) }}</span></div>
+  <div class="eff"><span class="eff-l">Net payable</span><span class="eff-v" style="color:#22c55e">₹{{ '{:,.0f}'.format(total_net) }}</span></div>
+</div>
+
 <div class="table-wrap"><table class="data-table">
-  <thead><tr><th>Worker</th><th>Type</th><th>Rate ₹</th><th>Present</th><th>Half</th><th>Absent</th><th>OT hrs</th><th>Base ₹</th><th>OT ₹</th><th>Adjust ₹</th><th>Total ₹</th><th>Edit</th></tr></thead>
+  <thead><tr><th>Worker</th><th>P</th><th>½</th><th>A</th><th>OT</th><th>Wages ₹</th><th>OT ₹</th><th>Adjust</th><th>Udhar taken</th><th>Repaid</th><th>Balance</th><th>Total ₹</th><th>Net pay ₹</th><th>Actions</th></tr></thead>
   <tbody>
     {% for w in wages %}
-    <tr><td>{{ w.name }}</td><td>{{ w.pay_type }}</td><td>{{ w.rate }}</td>
+    <tr><td>{{ w.name }}</td>
       <td>{{ w.present }}</td><td>{{ w.half }}</td><td>{{ w.absent }}</td><td>{{ w.ot_hours }}</td>
       <td>{{ '{:,.0f}'.format(w.base) }}</td><td>{{ '{:,.0f}'.format(w.ot_pay) }}</td>
-      <td>{% if w.adjustment %}<span class="{{ 'pos' if w.adjustment>=0 else 'neg' }}">{{ '{:+,.0f}'.format(w.adjustment) }}</span>{% if w.adj_note %}<br><small>{{ w.adj_note }}</small>{% endif %}{% else %}—{% endif %}</td>
+      <td>{% if w.adjustment %}<span class="{{ 'pos' if w.adjustment>=0 else 'neg' }}">{{ '{:+,.0f}'.format(w.adjustment) }}</span>{% else %}—{% endif %}</td>
+      <td>{% if w.udhar_taken %}<span class="neg">{{ '{:,.0f}'.format(w.udhar_taken) }}</span>{% else %}—{% endif %}</td>
+      <td>{% if w.udhar_repaid %}<span class="pos">{{ '{:,.0f}'.format(w.udhar_repaid) }}</span>{% else %}—{% endif %}</td>
+      <td>{% if w.udhar_balance %}<b class="{{ 'neg' if w.udhar_balance>0 else 'pos' }}">{{ '{:,.0f}'.format(w.udhar_balance) }}</b>{% else %}—{% endif %}</td>
       <td><b>{{ '{:,.0f}'.format(w.total) }}</b></td>
-      <td><button class="link" onclick="editAdj({{ w.id }},'{{ w.name }}',{{ w.adjustment or 0 }},'{{ w.adj_note or '' }}')">Edit</button></td></tr>
+      <td><b style="color:#22c55e">{{ '{:,.0f}'.format(w.net_payable) }}</b></td>
+      <td style="white-space:nowrap">
+        <button class="link" onclick="advForm({{ w.id }},'{{ w.name }}','given')">+ Udhar</button>
+        <button class="link" onclick="advForm({{ w.id }},'{{ w.name }}','repaid')">Repay</button>
+        <button class="link" onclick="editAdj({{ w.id }},'{{ w.name }}',{{ w.adjustment or 0 }},'{{ w.adj_note or '' }}')">Bonus</button>
+      </td></tr>
     {% endfor %}
-    {% if not wages %}<tr><td colspan="12" class="empty">No workers. Add them in Masters → Workers with pay rates.</td></tr>{% endif %}
+    {% if not wages %}<tr><td colspan="14" class="empty">No workers. Add them in Masters → Workers with pay rates.</td></tr>{% endif %}
   </tbody>
-  {% if wages %}<tfoot><tr class="totals-row"><td colspan="11">Total wages for {{ month }}</td><td>₹{{ '{:,.0f}'.format(grand) }}</td></tr></tfoot>{% endif %}
+  {% if wages %}<tfoot><tr class="totals-row"><td colspan="11">Total</td><td>₹{{ '{:,.0f}'.format(grand) }}</td><td>₹{{ '{:,.0f}'.format(total_net) }}</td><td></td></tr></tfoot>{% endif %}
 </table></div>
+
+<div class="modal" id="advModal"><div class="modal-card">
+  <h3 id="advTitle">Record Advance</h3>
+  <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="action" value="advance"><input type="hidden" name="month" value="{{ month }}">
+    <input type="hidden" name="worker_id" id="advWid"><input type="hidden" name="kind" id="advKind">
+    <label>Date<input type="date" name="adv_date" id="advDate"></label>
+    <label>Amount ₹<input type="number" step="any" name="amount" id="advAmount" required></label>
+    <label>Note<input name="note" id="advNote" placeholder="e.g. cash advance / repayment"></label>
+    <div class="form-actions"><button class="btn-primary">Save</button><button type="button" class="btn-cancel" onclick="document.getElementById('advModal').style.display='none'">Cancel</button></div>
+  </form>
+</div></div>
+<script>
+function advForm(id,name,kind){document.getElementById('advWid').value=id;document.getElementById('advKind').value=kind;
+  document.getElementById('advTitle').textContent=(kind==='given'?'Give Advance (Udhar) — ':'Record Repayment — ')+name;
+  document.getElementById('advDate').value=new Date().toISOString().slice(0,10);
+  document.getElementById('advAmount').value='';document.getElementById('advNote').value='';
+  document.getElementById('advModal').style.display='flex';}
+</script>
+
+{% if machine_labour %}
+<h3 class="page-title" style="margin-top:22px;font-size:15px">Machine Labour (from Daily Reports)</h3>
+<div class="table-wrap"><table class="data-table">
+  <thead><tr><th>Machine</th><th>Labour ₹ this month</th></tr></thead>
+  <tbody>
+    {% for m in machine_labour %}<tr><td>{{ m.name }}</td><td>{{ '{:,.0f}'.format(m.labour) }}</td></tr>{% endfor %}
+  </tbody>
+  <tfoot><tr class="totals-row"><td>Total machine labour</td><td>₹{{ '{:,.0f}'.format(machine_labour_total) }}</td></tr></tfoot>
+</table></div>
+<small style="color:var(--muted)">Machine labour is entered per machine on the Daily Report and posts to Finance automatically as salary. It is shown here for reference; it is separate from the per-worker wages above (no double-counting).</small>
+{% endif %}
 
 <div class="modal" id="adjModal"><div class="modal-card">
   <h3>Adjust Wage — <span id="adjName"></span></h3>
