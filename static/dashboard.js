@@ -191,6 +191,7 @@ function buildChart(canvas,w){
   charts[w.id]=new Chart(canvas,cfg);
 }
 function opts(o={}){const c={responsive:true,maintainAspectRatio:false,
+  devicePixelRatio:Math.max(window.devicePixelRatio||1,2),
   plugins:{legend:{position:"bottom",display:!o.noLegend,labels:{usePointStyle:true,boxWidth:8}}},
   scales:{x:{grid:{display:false}},y:{grid:{color:'rgba(128,128,128,.1)'}}}};
   if(o.stacked){c.scales.x.stacked=true;c.scales.y.stacked=true;}
