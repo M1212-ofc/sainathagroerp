@@ -47,18 +47,35 @@
       <label>Waste (KG) <input type="number" step="any" name="waste_kg" id="wasteKg" value="{{ report.waste_kg if report else '' }}"><small>Auto = Input − Crushing output (editable)</small></label>
     </div>
   </fieldset>
-  <fieldset><legend>Production Lines (Crushing &amp; Cleaning)</legend>
+  <fieldset><legend>Crushing Production (raw material → grit, powder, etc.)</legend>
     <div class="table-scroll">
-    <table class="lines-table" id="linesTable">
-      <thead><tr><th>Category</th><th>Name</th><th>Theli</th><th>Wt/bag</th><th>Total KG</th><th></th></tr></thead>
-      <tbody id="linesBody"></tbody>
+    <table class="lines-table" id="crushTable">
+      <thead><tr><th>Product</th><th>Theli</th><th>Wt/bag</th><th>Total KG</th></tr></thead>
+      <tbody id="crushBody"></tbody>
       <tfoot>
-        <tr class="totals-row"><td colspan="2">Crushing totals</td><td id="ctTheli">0</td><td></td><td id="ctKg">0</td><td></td></tr>
-        <tr class="totals-row"><td colspan="2">Cleaning totals</td><td id="clTheli">0</td><td></td><td id="clKg">0</td><td></td></tr>
+        <tr class="totals-row"><td>Crushing totals</td><td id="ctTheli">0</td><td></td><td id="ctKg">0</td></tr>
       </tfoot>
     </table>
     </div>
-    <button type="button" class="btn-add" id="addLine">+ Add line</button>
+    <button type="button" class="btn-add" id="addCrush">+ Add line</button>
+  </fieldset>
+
+  <fieldset><legend>Cleaning Production (grit graded into 1/2/3/4 + bhunar)</legend>
+    <div class="grid3" style="margin-bottom:12px">
+      <label>Grit input (raw material) <span class="auto-badge">auto</span>
+        <input type="number" step="any" id="cleanInput" class="auto-field" readonly>
+        <small>= Ground Grit from crushing above</small></label>
+    </div>
+    <div class="table-scroll">
+    <table class="lines-table" id="cleanTable">
+      <thead><tr><th>Product</th><th>Theli</th><th>Wt/bag</th><th>Total KG</th></tr></thead>
+      <tbody id="cleanBody"></tbody>
+      <tfoot>
+        <tr class="totals-row"><td>Cleaning totals</td><td id="clTheli">0</td><td></td><td id="clKg">0</td></tr>
+      </tfoot>
+    </table>
+    </div>
+    <button type="button" class="btn-add" id="addClean">+ Add line</button>
   </fieldset>
   <fieldset><legend>Worker Attendance (માણસોની હાજરી)</legend>
     <div class="table-scroll">

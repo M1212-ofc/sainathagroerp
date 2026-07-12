@@ -140,7 +140,7 @@ def _close_db(_=None):
 
 # make helpers available in every template
 # bump this string whenever static files change to force browsers to reload them
-ASSET_VER = "20260712p"
+ASSET_VER = "20260712r"
 
 
 @app.context_processor
@@ -1525,19 +1525,32 @@ def electricity():
     db = g.db
     if request.method == "POST":
         f = request.form
+        action = f.get("action")
+        # ---- daily solar entry ----
+        if action == "solar_daily":
+            d = f.get("solar_date") or date.today().isoformat()
+            su = num(f, "solar_units", float, 0)
+            db.execute(
+                """INSERT INTO solar_daily (log_date, units, note) VALUES (?,?,?)
+                   ON CONFLICT(log_date) DO UPDATE SET units=excluded.units, note=excluded.note""",
+                (d, su, f.get("note")))
+            db.commit()
+            flash("Solar generation recorded.", "ok")
+            return redirect(url_for("electricity"))
+        # ---- monthly bill (with optional solar total) ----
         month = f.get("month")
         rate = num(f, "rate_per_unit", float, 0)
         units = num(f, "units", float, 0)
+        solar = num(f, "solar_units_month", float, 0)
         amount = num(f, "amount_inr")
-        # if amount is blank but units×rate given, compute amount
         if amount == 0 and units and rate:
             amount = round(units * rate, 2)
         db.execute(
-            """INSERT INTO electricity_bills (month, amount_inr, units, rate_per_unit, note) VALUES (?,?,?,?,?)
+            """INSERT INTO electricity_bills (month, amount_inr, units, rate_per_unit, solar_units, note) VALUES (?,?,?,?,?,?)
                ON CONFLICT(month) DO UPDATE SET amount_inr=excluded.amount_inr,
-               units=excluded.units, rate_per_unit=excluded.rate_per_unit, note=excluded.note""",
-            (month, amount, units, rate, f.get("note")))
-        # auto-post as an electricity expense in finance (replace prior for that month)
+               units=excluded.units, rate_per_unit=excluded.rate_per_unit,
+               solar_units=excluded.solar_units, note=excluded.note""",
+            (month, amount, units, rate, solar, f.get("note")))
         logic.clear_source(db, "finance", "electricity", month_ref(month))
         elec_date = min(month + "-28", date.today().isoformat())
         logic.post_finance(db, elec_date, "expense", "electricity", amount,
@@ -1548,7 +1561,6 @@ def electricity():
         return redirect(url_for("electricity"))
 
     bills = db.execute("SELECT * FROM electricity_bills ORDER BY month DESC").fetchall()
-    # compute cost per kg for each billed month
     rows = []
     for b in bills:
         s = b["month"] + "-01"
@@ -1558,9 +1570,18 @@ def electricity():
                FROM reports WHERE report_date BETWEEN ? AND ?""", (s, e)).fetchone()["kg"]
         cpk = round(b["amount_inr"] / prod, 3) if prod else None
         rate = b["rate_per_unit"] if "rate_per_unit" in b.keys() else 0
+        solar = b["solar_units"] if "solar_units" in b.keys() else 0
+        # sum daily solar for this month as a cross-check
+        daily_solar = db.execute(
+            "SELECT COALESCE(SUM(units),0) v FROM solar_daily WHERE log_date BETWEEN ? AND ?",
+            (s, e)).fetchone()["v"]
         rows.append(dict(month=b["month"], amount=b["amount_inr"], units=b["units"],
-                         rate_per_unit=rate, production=round(prod, 1), cost_per_kg=cpk, note=b["note"]))
-    return render_template("electricity.html", rows=rows)
+                         rate_per_unit=rate, solar_units=solar, daily_solar=round(daily_solar, 1),
+                         production=round(prod, 1), cost_per_kg=cpk, note=b["note"]))
+    # recent daily solar entries
+    solar_days = db.execute("SELECT * FROM solar_daily ORDER BY log_date DESC LIMIT 30").fetchall()
+    solar_days = [dict(d) for d in solar_days]
+    return render_template("electricity.html", rows=rows, solar_days=solar_days)
 
 
 @app.route("/api/electricity_rate")

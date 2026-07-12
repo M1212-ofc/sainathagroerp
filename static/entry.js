@@ -16,42 +16,59 @@ const DEFAULT_LINES = [
   { category:"cleaning", name:"ગ્રીટ નંબર ૪ (Grit No. 4)" },
   { category:"cleaning", name:"ભૂરૂ (Bhunar)" },
 ];
-const body=document.getElementById("linesBody");
 
-function recalcTotals(){let ct=0,ck=0,lt=0,lk=0;
-  body.querySelectorAll("tr").forEach(tr=>{const cat=tr.querySelector("select").value;
+function recalcTotals(){
+  let ct=0,ck=0,lt=0,lk=0,gritKg=0;
+  document.querySelectorAll("#crushBody tr").forEach(tr=>{
     const th=parseFloat(tr.querySelector(".calc-theli").value)||0;
     const tot=parseFloat(tr.querySelector(".total").value)||0;
-    if(cat==="crushing"){ct+=th;ck+=tot;}else{lt+=th;lk+=tot;}});
-  ctTheli.textContent=+ct.toFixed(2);ctKg.textContent=+ck.toFixed(2);
-  clTheli.textContent=+lt.toFixed(2);clKg.textContent=+lk.toFixed(2);
+    const nm=(tr.querySelector('input[name=line_name]').value||"").toLowerCase();
+    ct+=th;ck+=tot;
+    if(nm.includes("ground grit")||nm.includes("દળાયેલી"))gritKg+=tot;   // grit feeds cleaning
+  });
+  document.querySelectorAll("#cleanBody tr").forEach(tr=>{
+    const th=parseFloat(tr.querySelector(".calc-theli").value)||0;
+    const tot=parseFloat(tr.querySelector(".total").value)||0;
+    lt+=th;lk+=tot;
+  });
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=+v.toFixed(2);};
+  set('ctTheli',ct);set('ctKg',ck);set('clTheli',lt);set('clKg',lk);
+  // cleaning raw material = ground grit produced in crushing
+  const ci=document.getElementById("cleanInput");if(ci)ci.value=gritKg?+gritKg.toFixed(2):'';
   window._crushingKg=ck;              // expose crushing output for waste calc
   recalcWaste();}
 
-function addRow(line={}){const tr=document.createElement("tr");
-  const wt = (line.theli_weight!==undefined && line.theli_weight!=="" && line.theli_weight!==null)
-             ? line.theli_weight : defaultWeight(line.name);
-  tr.innerHTML=`<td><select name="line_cat">
-    <option value="crushing" ${line.category==="crushing"?"selected":""}>Crushing</option>
-    <option value="cleaning" ${line.category==="cleaning"?"selected":""}>Cleaning</option></select></td>
-    <td><input type="text" name="line_name" value="${line.name||""}"></td>
+const crushBody=document.getElementById("crushBody");
+const cleanBody=document.getElementById("cleanBody");
+
+function addRow(line={}, category){
+  // category forced by which table it's in
+  const cat=category||line.category||"crushing";
+  const bodyEl=(cat==="cleaning")?cleanBody:crushBody;
+  const tr=document.createElement("tr");
+  const wt=(line.theli_weight!==undefined&&line.theli_weight!==""&&line.theli_weight!==null)?line.theli_weight:defaultWeight(line.name);
+  tr.innerHTML=`<td><input type="hidden" name="line_cat" value="${cat}">
+      <input type="text" name="line_name" value="${(line.name||"").replace(/"/g,'&quot;')}"></td>
     <td><input type="number" step="any" name="line_theli" value="${line.theli||""}" class="calc-theli"></td>
     <td><input type="number" step="any" name="line_weight" value="${wt}" class="calc-wt"></td>
-    <td><input type="number" step="any" name="line_total" value="${line.total_kg||""}" class="total"></td>
-    <td><button type="button" class="row-del">×</button></td>`;
-  body.appendChild(tr);
+    <td><input type="number" step="any" name="line_total" value="${line.total_kg||""}" class="total"></td>`;
+  bodyEl.appendChild(tr);
   const nameEl=tr.querySelector('input[name=line_name]');
   const theli=tr.querySelector(".calc-theli"),weight=tr.querySelector(".calc-wt"),total=tr.querySelector(".total");
   const rc=()=>{const t=parseFloat(theli.value)||0,w=parseFloat(weight.value)||0;if(t&&w)total.value=+(t*w).toFixed(2);recalcTotals();};
   theli.addEventListener("input",rc);weight.addEventListener("input",rc);total.addEventListener("input",recalcTotals);
-  tr.querySelector("select").addEventListener("change",recalcTotals);
-  // if user changes the name and hasn't touched weight, refresh default weight
-  nameEl.addEventListener("change",()=>{ if(!weight.dataset.touched){weight.value=defaultWeight(nameEl.value);rc();}});
+  nameEl.addEventListener("change",()=>{if(!weight.dataset.touched){weight.value=defaultWeight(nameEl.value);rc();}});
   weight.addEventListener("input",()=>weight.dataset.touched="1");
-  tr.querySelector(".row-del").addEventListener("click",()=>{tr.remove();recalcTotals();});}
+}
 
-document.getElementById("addLine").addEventListener("click",()=>addRow());
-if(typeof existingLines!=="undefined"&&existingLines.length)existingLines.forEach(addRow);else DEFAULT_LINES.forEach(addRow);
+document.getElementById("addCrush").addEventListener("click",()=>addRow({},"crushing"));
+document.getElementById("addClean").addEventListener("click",()=>addRow({},"cleaning"));
+
+// initial load: split existing/default lines into the two tables by category
+(function(){
+  const src=(typeof existingLines!=="undefined"&&existingLines.length)?existingLines:DEFAULT_LINES;
+  src.forEach(l=>addRow(l, (l.category==="cleaning"?"cleaning":"crushing")));
+})();
 
 // ---- Workers (attendance from master list) ----
 const wbody=document.getElementById("workersBody");

@@ -221,12 +221,22 @@ CREATE TABLE IF NOT EXISTS worker_master (
 );
 
 -- ------------------------------------------------------- ELECTRICITY BILLS
+CREATE TABLE IF NOT EXISTS solar_daily (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    log_date    TEXT NOT NULL,
+    units       REAL DEFAULT 0,
+    note        TEXT,
+    created_at  TEXT DEFAULT (datetime('now')),
+    UNIQUE(log_date)
+);
+
 CREATE TABLE IF NOT EXISTS electricity_bills (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     month         TEXT NOT NULL,          -- YYYY-MM
     amount_inr    REAL NOT NULL,
     units         REAL DEFAULT 0,         -- optional: MGVCL units billed
     rate_per_unit REAL DEFAULT 0,         -- ₹ per unit (manual or suggested)
+    solar_units   REAL DEFAULT 0,         -- solar units generated this month
     note          TEXT,
     created_at    TEXT DEFAULT (datetime('now')),
     UNIQUE(month)
