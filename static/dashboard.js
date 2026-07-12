@@ -55,6 +55,8 @@ async function loadLayout(){
   // hidden KPI list is stored as a special meta entry in the layout array
   const meta=layout.find(x=>x.id==="__kpimeta__");
   hiddenKpis=meta&&meta.hiddenKpis?meta.hiddenKpis:[];
+  kpiOrder=meta&&meta.kpiOrder?meta.kpiOrder:[];
+  kpiSizes=meta&&meta.kpiSizes?meta.kpiSizes:{};
   layout=layout.filter(x=>x.id!=="__kpimeta__");
   // drop widgets whose metric no longer exists (e.g. after the crushing/cleaning merge)
   const validKeys=new Set(metrics.map(m=>m.key));
@@ -69,7 +71,7 @@ async function loadLayout(){
   applyKpiVisibility();
 }
 async function saveLayout(){
-  const out=layout.concat([{id:"__kpimeta__",hiddenKpis:hiddenKpis}]);
+  const out=layout.concat([{id:"__kpimeta__",hiddenKpis:hiddenKpis,kpiOrder:(editing?currentKpiOrder():kpiOrder),kpiSizes:kpiSizes}]);
   await fetch(`/api/dashboard/layout?variant=${VARIANT}`,{method:"POST",
     headers:{"Content-Type":"application/json","X-CSRF-Token":(document.querySelector("meta[name=csrf-token]")||{}).content},body:JSON.stringify({layout:out})});
 }
@@ -108,6 +110,37 @@ async function loadData(){
   drawSpark('sparkClean',S.map(x=>x.cleaning),COLORS.night);
   drawSpark('sparkWaste',S.map(x=>x.waste),COLORS.red);
   renderWidgets();
+  renderMachines();
+}
+
+let machineChartObj=null;
+function renderMachines(){
+  const sec=document.getElementById("machineSection");
+  const cards=document.getElementById("machineCards");
+  if(!sec||!cards)return;
+  const ms=(lastData&&lastData.machines)||[];
+  if(!ms.length){sec.style.display="none";return;}
+  sec.style.display="";
+  // per-machine stat cards
+  cards.innerHTML=ms.map(m=>`<div class="eff" style="min-width:190px">
+    <span class="eff-l">${m.name}</span>
+    <span class="eff-v">${m.output.toLocaleString()} kg</span>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.6">
+      Units: <b>${m.units.toLocaleString()}</b> · Labour: <b>₹${m.labour.toLocaleString()}</b><br>
+      Maint: <b>₹${m.maint.toLocaleString()}</b> · Cost/kg: <b style="color:var(--primary)">₹${m.cost_per_kg}</b>
+    </div></div>`).join("");
+  // output-by-machine bar chart
+  const cv=document.getElementById("machineChart");
+  if(cv&&window.Chart){
+    if(machineChartObj)machineChartObj.destroy();
+    const palette=["#2a78d6","#1baf7a","#eda100","#e34948","#4a3aa7","#e87ba4"];
+    machineChartObj=new Chart(cv,{type:"bar",
+      data:{labels:ms.map(m=>m.name),datasets:[{label:"Output KG",
+        data:ms.map(m=>m.output),backgroundColor:ms.map((m,i)=>palette[i%palette.length]),borderRadius:6}]},
+      options:{responsive:true,maintainAspectRatio:false,devicePixelRatio:Math.max(window.devicePixelRatio||1,2),
+        plugins:{legend:{display:false}},
+        scales:{x:{grid:{display:false},ticks:{color:chartInk()}},y:{grid:{color:'rgba(128,128,128,.1)'},ticks:{color:chartInk()}}}}});
+  }
 }
 
 function renderWidgets(){
@@ -215,30 +248,53 @@ function enterEdit(){editing=true;document.getElementById("editBar").style.displ
 function exitEdit(save){editing=false;document.getElementById("editBar").style.display="none";
   document.getElementById("editDashBtn").style.display="";if(save)saveLayout();renderWidgets();renderKpiEdit();}
 
-// ---- KPI card editability (hide/show individual bento cards) ----
+// ---- KPI card editability (hide / reorder / resize bento cards) ----
+let kpiOrder=[], kpiSizes={};
 function applyKpiVisibility(){
+  const grid=document.querySelector(".bento");
+  if(!grid)return;
+  // apply saved order
+  if(kpiOrder.length){
+    kpiOrder.forEach(m=>{const c=grid.querySelector(`.bento-card[data-metric="${m}"]`);if(c)grid.appendChild(c);});
+  }
   document.querySelectorAll(".bento-card").forEach(c=>{
     const m=c.dataset.metric;
     if(hiddenKpis.includes(m)&&!editing)c.style.display="none";else c.style.display="";
+    // apply saved size (small=1 col, wide=2 col via existing 'wide2' class)
+    const sz=kpiSizes[m];
+    if(sz==="wide")c.classList.add("wide2");else if(sz==="small")c.classList.remove("wide2");
   });
 }
+function currentKpiOrder(){return [...document.querySelectorAll(".bento-card")].map(c=>c.dataset.metric);}
 function renderKpiEdit(){
+  const grid=document.querySelector(".bento");
   document.querySelectorAll(".bento-card").forEach(c=>{
-    let btn=c.querySelector(".kpi-hide-btn");
+    let tools=c.querySelector(".kpi-tools");
     if(editing){
-      c.classList.add("kpi-editing");
-      if(!btn){
-        btn=document.createElement("button");btn.type="button";btn.className="kpi-hide-btn wt";
-        btn.style.cssText="position:absolute;top:6px;right:6px;z-index:5";
-        c.style.position="relative";c.appendChild(btn);
-        btn.onclick=e=>{e.stopPropagation();const m=c.dataset.metric;
-          if(hiddenKpis.includes(m))hiddenKpis=hiddenKpis.filter(x=>x!==m);else hiddenKpis.push(m);
-          renderKpiEdit();};
+      c.classList.add("kpi-editing");c.style.position="relative";c.setAttribute("draggable","true");
+      if(!tools){
+        tools=document.createElement("div");tools.className="kpi-tools";
+        tools.style.cssText="position:absolute;top:6px;right:6px;z-index:5;display:flex;gap:4px";
+        const mk=(txt,act)=>{const b=document.createElement("button");b.type="button";b.className="wt";b.textContent=txt;b.dataset.act=act;return b;};
+        tools.appendChild(mk("⬌","size"));tools.appendChild(mk("👁","hide"));
+        c.appendChild(tools);
+        tools.querySelectorAll("button").forEach(b=>b.onclick=e=>{e.stopPropagation();
+          const m=c.dataset.metric,a=b.dataset.act;
+          if(a==="hide"){if(hiddenKpis.includes(m))hiddenKpis=hiddenKpis.filter(x=>x!==m);else hiddenKpis.push(m);}
+          else if(a==="size"){kpiSizes[m]=(kpiSizes[m]==="wide")?"small":"wide";}
+          renderKpiEdit();});
       }
       const hidden=hiddenKpis.includes(c.dataset.metric);
-      btn.textContent=hidden?"🙈":"👁";c.classList.toggle("dimmed",hidden);
+      tools.querySelector('[data-act=hide]').textContent=hidden?"🙈":"👁";
+      c.classList.toggle("dimmed",hidden);
+      // drag to reorder
+      c.ondragstart=e=>{e.dataTransfer.setData("text/plain",c.dataset.metric);c.classList.add("dragging");};
+      c.ondragend=()=>{c.classList.remove("dragging");kpiOrder=currentKpiOrder();};
+      c.ondragover=e=>{e.preventDefault();const dragging=grid.querySelector(".bento-card.dragging");
+        if(dragging&&dragging!==c)grid.insertBefore(dragging,c);};
     }else{
-      c.classList.remove("kpi-editing");if(btn)btn.remove();
+      c.classList.remove("kpi-editing");c.removeAttribute("draggable");
+      if(tools)tools.remove();
     }
   });
   applyKpiVisibility();
