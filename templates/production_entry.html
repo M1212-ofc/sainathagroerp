@@ -17,7 +17,9 @@
   </fieldset>
 
   <fieldset><legend>Machine Production &amp; Costs (મશીન)</legend>
-    <table class="lines-table"><thead><tr><th>Machine</th><th style="width:140px">Maintenance ₹</th><th style="width:140px">Workers</th><th></th></tr></thead><tbody id="machinesBody"></tbody></table>
+    <div class="table-scroll">
+    <table class="lines-table"><thead><tr><th style="min-width:120px">Machine</th><th style="width:140px">Maintenance ₹</th><th style="width:140px">Workers</th><th style="width:30px"></th></tr></thead><tbody id="machinesBody"></tbody></table>
+    </div>
     <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
       <select id="addMachineSelect"><option value="">— re-add a removed machine —</option></select>
       <button type="button" class="btn-add" id="addMachineBtn">+ Add selected</button>
@@ -46,6 +48,7 @@
     </div>
   </fieldset>
   <fieldset><legend>Production Lines (Crushing &amp; Cleaning)</legend>
+    <div class="table-scroll">
     <table class="lines-table" id="linesTable">
       <thead><tr><th>Category</th><th>Name</th><th>Theli</th><th>Wt/bag</th><th>Total KG</th><th></th></tr></thead>
       <tbody id="linesBody"></tbody>
@@ -54,10 +57,13 @@
         <tr class="totals-row"><td colspan="2">Cleaning totals</td><td id="clTheli">0</td><td></td><td id="clKg">0</td><td></td></tr>
       </tfoot>
     </table>
+    </div>
     <button type="button" class="btn-add" id="addLine">+ Add line</button>
   </fieldset>
   <fieldset><legend>Worker Attendance (માણસોની હાજરી)</legend>
-    <table class="lines-table"><thead><tr><th style="width:40px">#</th><th>Name</th><th style="width:170px">Attendance</th><th style="width:130px">Machine</th><th style="width:80px">Hours</th><th style="width:80px">OT hrs</th><th></th></tr></thead><tbody id="workersBody"></tbody></table>
+    <div class="table-scroll">
+    <table class="lines-table"><thead><tr><th style="width:40px">#</th><th style="min-width:130px">Name</th><th style="width:150px">Attendance</th><th style="width:140px">Machine</th><th style="width:70px">Hours</th><th style="width:70px">OT hrs</th><th style="width:30px"></th></tr></thead><tbody id="workersBody"></tbody></table>
+    </div>
     <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
       <select id="addWorkerSelect"><option value="">— re-add a removed worker —</option></select>
       <button type="button" class="btn-add" id="addWorkerBtn">+ Add selected</button>

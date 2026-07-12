@@ -288,3 +288,8 @@ small{color:var(--muted);font-size:11px}
 .lines-table select.mc-select:focus{border-color:var(--primary);outline:none}
 .lines-table select.att-sel{padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);font-weight:500}
 .lines-table input{padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink)}
+
+/* ---- horizontal scroll for wide entry tables on narrow screens ---- */
+.table-scroll{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.table-scroll .lines-table{min-width:640px}
+.lines-table select.mc-select{min-width:120px}
