@@ -102,12 +102,13 @@
       <label>Name *<input name="name" id="prod_name" required></label>
       <label>Category<select name="category" id="prod_cat"><option>crushing</option><option>cleaning</option><option>other</option></select></label>
       <label>Unit<input name="unit" id="prod_unit" value="kg"></label>
+      <label>Avg sell rate (₹/kg)<input type="number" step="any" name="sell_rate" id="prod_rate" placeholder="for inventory value"></label>
       <label>Low-stock alert (KG)<input type="number" step="any" name="low_stock" id="prod_low" placeholder="0 = off"></label>
     </div>
     <div class="form-actions"><button class="btn-primary">Save</button><button type="button" class="btn-cancel" onclick="resetForm('prod')">Clear</button></div>
   </form></fieldset>
-  <div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Category</th><th>Unit</th><th>Low alert</th><th></th></tr></thead>
-    <tbody>{% for p in products %}<tr><td>{{ p.name }}</td><td>{{ p.category }}</td><td>{{ p.unit }}</td><td>{{ p.low_stock or '' }}</td>
+  <div class="table-wrap"><table class="data-table"><thead><tr><th>Name</th><th>Category</th><th>Unit</th><th>Rate ₹/kg</th><th>Low alert</th><th></th></tr></thead>
+    <tbody>{% for p in products %}<tr><td>{{ p.name }}</td><td>{{ p.category }}</td><td>{{ p.unit }}</td><td>{{ p.sell_rate or '—' }}</td><td>{{ p.low_stock or '' }}</td>
       <td class="row-actions"><button class="link" onclick='editProd({{ p|tojson }})'>Edit</button>
       <form method="post" action="{{ url_for('masters_delete') }}" onsubmit="return confirm('Delete?')">
 <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="type" value="product"><input type="hidden" name="id" value="{{ p.id }}"><input type="hidden" name="tab" value="products"><button class="link-danger">Delete</button></form></td></tr>{% endfor %}</tbody>
@@ -225,7 +226,7 @@ function setv(id,v){const el=document.getElementById(id);if(el)el.value=v??'';}
 function resetForm(p){document.getElementById(p+'Form').reset();setv(p+'Id','');}
 function editSup(s){setv('supId',s.id);setv('sup_company',s.company_name);setv('sup_contact',s.contact_name);setv('sup_cc',s.phone_cc);setv('sup_phone',s.phone);setv('sup_gst',s.gst_no);setv('sup_village',s.village);setv('sup_email',s.email);setv('sup_address',s.address);setv('sup_notes',s.notes);document.getElementById('supLegend').textContent='Edit Supplier';window.scrollTo(0,0);}
 function editCus(c){setv('cusId',c.id);setv('cus_company',c.company_name);setv('cus_contact',c.contact_name);setv('cus_cc',c.phone_cc);setv('cus_phone',c.phone);setv('cus_gst',c.gst_no);setv('cus_kind',c.kind);setv('cus_country',c.country);setv('cus_city',c.city);setv('cus_email',c.email);setv('cus_vehicle',c.vehicle_no);setv('cus_address',c.address);setv('cus_notes',c.notes);document.getElementById('cusLegend').textContent='Edit Customer';window.scrollTo(0,0);}
-function editProd(p){setv('prodId',p.id);setv('prod_name',p.name);setv('prod_cat',p.category);setv('prod_unit',p.unit);setv('prod_low',p.low_stock);document.getElementById('prodLegend').textContent='Edit Product';window.scrollTo(0,0);}
+function editProd(p){setv('prodId',p.id);setv('prod_name',p.name);setv('prod_cat',p.category);setv('prod_unit',p.unit);setv('prod_rate',p.sell_rate);setv('prod_low',p.low_stock);document.getElementById('prodLegend').textContent='Edit Product';window.scrollTo(0,0);}
 function editRaw(m){setv('rawId',m.id);setv('raw_name',m.name);setv('raw_unit',m.unit);setv('raw_low',m.low_stock);document.getElementById('rawLegend').textContent='Edit Raw Material';window.scrollTo(0,0);}
 function editWk(w){setv('wkId',w.id);setv('wk_name',w.name);setv('wk_phone',w.phone);setv('wk_role',w.role);setv('wk_hours',w.default_hours);setv('wk_paytype',w.pay_type||'daily');setv('wk_payrate',w.pay_rate);setv('wk_otrate',w.ot_rate);document.getElementById('wkLegend').textContent='Edit Worker';window.scrollTo(0,0);}
 function editMc(m){setv('mcId',m.id);setv('mc_name',m.name);setv('mc_cap',m.capacity_kg);setv('mc_kw',m.power_kw);setv('mc_note',m.note);document.getElementById('mcLegend').textContent='Edit Machine';window.scrollTo(0,0);}

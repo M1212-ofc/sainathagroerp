@@ -31,7 +31,7 @@
 </script>
 
 <div class="table-wrap"><table class="data-table">
-  <thead><tr><th>Month</th><th>Bill ₹</th><th>Units</th><th>₹/unit</th><th>Solar units</th><th>Production (kg)</th><th>Cost / kg ₹</th><th>Note</th></tr></thead>
+  <thead><tr><th>Month</th><th>Bill ₹</th><th>Units</th><th>₹/unit</th><th>Solar units</th><th>Production (kg)</th><th>Cost / kg ₹</th><th>Note</th><th></th></tr></thead>
   <tbody>
     {% for r in rows %}
     <tr><td>{{ r.month }}</td><td>{{ '{:,.0f}'.format(r.amount) }}</td><td>{{ r.units or '—' }}</td>
@@ -39,11 +39,27 @@
       <td>{% if r.solar_units %}<b style="color:#f59e0b">{{ '{:,.0f}'.format(r.solar_units) }}</b>{% elif r.daily_solar %}{{ '{:,.0f}'.format(r.daily_solar) }} <small>(daily)</small>{% else %}—{% endif %}</td>
       <td>{{ '{:,.1f}'.format(r.production) }}</td>
       <td>{% if r.cost_per_kg %}<b>₹{{ r.cost_per_kg }}</b>{% else %}—{% endif %}</td>
-      <td>{{ r.note or '' }}</td></tr>
+      <td>{{ r.note or '' }}</td>
+      <td class="row-actions">
+        <button class="link" onclick='editBill({{ r|tojson }})'>Edit</button>
+        <form method="post" action="{{ url_for('electricity_delete', rid=r.id) }}" style="display:inline" onsubmit="return confirm('Delete this bill?')">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="link-danger">Delete</button></form>
+      </td></tr>
     {% endfor %}
-    {% if not rows %}<tr><td colspan="8" class="empty">No electricity bills entered yet.</td></tr>{% endif %}
+    {% if not rows %}<tr><td colspan="9" class="empty">No electricity bills entered yet.</td></tr>{% endif %}
   </tbody>
 </table></div>
+<script>
+function editBill(r){
+  document.querySelector('input[name=month]').value=r.month;
+  document.getElementById('eUnits').value=r.units||'';
+  document.getElementById('eRate').value=r.rate_per_unit||'';
+  document.getElementById('eAmount').value=r.amount||'';
+  const sm=document.querySelector('input[name=solar_units_month]');if(sm)sm.value=r.solar_units||'';
+  const nt=document.querySelector('input[name=note]');if(nt)nt.value=r.note||'';
+  window.scrollTo(0,0);
+}
+</script>
 
 <h3 class="page-title" style="font-size:15px;margin:24px 0 12px">☀️ Solar Generation (daily — optional)</h3>
 <fieldset class="entry-form"><legend>Record Daily Solar</legend>
@@ -61,9 +77,10 @@
 
 {% if solar_days %}
 <div class="table-wrap"><table class="data-table">
-  <thead><tr><th>Date</th><th>Units generated</th><th>Note</th></tr></thead>
+  <thead><tr><th>Date</th><th>Units generated</th><th>Note</th><th></th></tr></thead>
   <tbody>
-    {% for d in solar_days %}<tr><td>{{ d.log_date }}</td><td><b style="color:#f59e0b">{{ '{:,.1f}'.format(d.units) }}</b></td><td>{{ d.note or '' }}</td></tr>{% endfor %}
+    {% for d in solar_days %}<tr><td>{{ d.log_date }}</td><td><b style="color:#f59e0b">{{ '{:,.1f}'.format(d.units) }}</b></td><td>{{ d.note or '' }}</td>
+      <td class="row-actions"><form method="post" action="{{ url_for('solar_delete', rid=d.id) }}" style="display:inline" onsubmit="return confirm('Delete?')"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="link-danger">Delete</button></form></td></tr>{% endfor %}
   </tbody>
 </table></div>
 {% endif %}

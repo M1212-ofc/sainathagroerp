@@ -102,6 +102,7 @@ async function loadData(){
     setText('kSales','₹'+fmtC(d.sales_inr));setText('kExport','₹'+fmtC(d.export_inr));
     setText('kIncome','₹'+fmtC(d.finance.income));setText('kExpense','₹'+fmtC(d.finance.expense));
   }
+  if(IS_MAIN&&k.inventory_value!==undefined)setText('kInvValue','₹'+fmtC(k.inventory_value));
   // sparklines from series
   const S=d.series||[];
   drawSpark('heroSpark',S.map(x=>x.crushing),COLORS.green,true);
@@ -169,6 +170,25 @@ function buildChart(canvas,w){
     {label:"KG",data:d.crushing_products.map(p=>p.kg),backgroundColor:COLORS.green,borderRadius:6}]},options:opts(H({horizontal:w.type!=="bar"}))};}
   else if(kind==="cleanprod"){cfg={type:auto("bar"),data:{labels:d.cleaning_products.map(p=>p.name),datasets:[
     {label:"KG",data:d.cleaning_products.map(p=>p.kg),backgroundColor:COLORS.night,borderRadius:6}]},options:opts(H({horizontal:w.type!=="bar"}))};}
+  else if(kind==="crushcost"){
+    const cc=d.crush_cost||{};
+    if(w.type==="line"){
+      const t=cc.trend||[];
+      cfg={type:"line",data:{labels:t.map(x=>x.month),datasets:[{label:"Cost/kg ₹",
+        data:t.map(x=>x.cost_per_kg),borderColor:COLORS.blue,backgroundColor:COLORS.blue+"33",fill:true,tension:.4,pointRadius:3}]},
+        options:opts({noLegend:true})};
+    }else if(w.type==="doughnut"){
+      cfg={type:"doughnut",data:{labels:["Raw material","Labour","Power","Maintenance","Other"],
+        datasets:[{data:[cc.raw,cc.labour,cc.power,cc.maint,cc.other],
+          backgroundColor:[COLORS.amber,COLORS.green,COLORS.blue,COLORS.red,COLORS.night],borderWidth:2,borderColor:"#fff"}]},
+        options:opts()};
+    }else{
+      cfg={type:"bar",data:{labels:["Raw","Labour","Power","Maint","Other"],
+        datasets:[{label:"₹/kg",data:[cc.pk_raw,cc.pk_labour,cc.pk_power,cc.pk_maint,cc.pk_other],
+          backgroundColor:[COLORS.amber,COLORS.green,COLORS.blue,COLORS.red,COLORS.night],borderRadius:6}]},
+        options:opts({noLegend:true})};
+    }
+  }
   else if(kind==="crushmerged"||kind==="cleanmerged"){
     const stack=kind==="crushmerged"?(d.crushing_stack||{}):(d.cleaning_stack||{});
     const palette=["#2a78d6","#1baf7a","#eda100","#e34948","#4a3aa7","#e87ba4","#eb6834","#008300"];

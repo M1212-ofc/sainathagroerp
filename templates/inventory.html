@@ -10,9 +10,14 @@
       {% else %}<tr><td colspan="3" class="empty">No raw stock.</td></tr>{% endfor %}</tbody></table>
   </div>
   <div class="panel"><h3>📤 Finished Goods Stock</h3>
-    <table class="data-table"><thead><tr><th>Product</th><th>Qty (KG)</th></tr></thead><tbody>
-      {% for i in finished %}<tr><td>{{ i.item_name }}</td><td><b>{{ '{:,.1f}'.format(i.qty) }}</b></td></tr>
-      {% else %}<tr><td colspan="2" class="empty">No finished stock.</td></tr>{% endfor %}</tbody></table>
+    <table class="data-table"><thead><tr><th>Product</th><th>Qty (KG)</th><th>Rate ₹/kg</th><th>Value ₹</th></tr></thead><tbody>
+      {% for i in finished %}<tr><td>{{ i.item_name }}</td><td><b>{{ '{:,.1f}'.format(i.qty) }}</b></td>
+        <td>{{ i.rate or '—' }}</td>
+        <td>{% if i.value %}<b>{{ '{:,.0f}'.format(i.value) }}</b>{% else %}—{% endif %}</td></tr>
+      {% else %}<tr><td colspan="4" class="empty">No finished stock.</td></tr>{% endfor %}</tbody>
+      {% if finished %}<tfoot><tr class="totals-row"><td colspan="3">Total inventory value</td><td><b>₹{{ '{:,.0f}'.format(total_value) }}</b></td></tr></tfoot>{% endif %}
+    </table>
+    <small style="color:var(--muted)">Value = stock × avg sell rate (set rates in Masters → Products)</small>
   </div>
 </div>
 

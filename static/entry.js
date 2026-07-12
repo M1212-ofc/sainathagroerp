@@ -33,13 +33,15 @@ function recalcTotals(){
   });
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=+v.toFixed(2);};
   set('ctTheli',ct);set('ctKg',ck);set('clTheli',lt);set('clKg',lk);
-  // cleaning raw material = ground grit produced in crushing
-  const ci=document.getElementById("cleanInput");if(ci)ci.value=gritKg?+gritKg.toFixed(2):'';
+  // suggest cleaning raw material = ground grit produced (only if user hasn't typed)
+  const ci=document.getElementById("cleanInput");
+  if(ci&&!ci.dataset.touched)ci.value=gritKg?+gritKg.toFixed(2):'';
   window._crushingKg=ck;              // expose crushing output for waste calc
   recalcWaste();}
 
 const crushBody=document.getElementById("crushBody");
 const cleanBody=document.getElementById("cleanBody");
+(function(){const ci=document.getElementById("cleanInput");if(ci)ci.addEventListener("input",()=>ci.dataset.touched="1");})();
 
 function addRow(line={}, category){
   // category forced by which table it's in

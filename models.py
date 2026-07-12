@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS products (
     category  TEXT,                  -- crushing | cleaning | other
     unit      TEXT DEFAULT 'kg',
     low_stock REAL DEFAULT 0,        -- alert threshold
+    sell_rate REAL DEFAULT 0,        -- avg selling rate ₹/kg (for inventory valuation)
     active    INTEGER DEFAULT 1
 );
 

@@ -62,9 +62,9 @@
 
   <fieldset><legend>Cleaning Production (grit graded into 1/2/3/4 + bhunar)</legend>
     <div class="grid3" style="margin-bottom:12px">
-      <label>Grit input (raw material) <span class="auto-badge">auto</span>
-        <input type="number" step="any" id="cleanInput" class="auto-field" readonly>
-        <small>= Ground Grit from crushing above</small></label>
+      <label>Grit input used (raw material)
+        <input type="number" step="any" name="cleaning_grit_used" id="cleanInput" placeholder="grit consumed by cleaning">
+        <small>Grit in stock: <b id="gritStock">{{ grit_stock or 0 }}</b> kg — deducted from inventory</small></label>
     </div>
     <div class="table-scroll">
     <table class="lines-table" id="cleanTable">

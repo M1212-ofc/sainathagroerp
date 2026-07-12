@@ -140,7 +140,7 @@ def _close_db(_=None):
 
 # make helpers available in every template
 # bump this string whenever static files change to force browsers to reload them
-ASSET_VER = "20260712r"
+ASSET_VER = "20260712v"
 
 
 @app.context_processor
@@ -251,6 +251,7 @@ DASH_METRICS = [
     ("crushmerged",  "Crushing Production & Products (KG)",    "crushmerged",  False),
     ("cleanmerged",  "Cleaning Production & Products (KG)",    "cleanmerged",  False),
     ("inputoutput",  "Input vs Crushing Output (KG)",         "inputoutput",  False),
+    ("crushcost",    "Crushing Cost / kg (₹)",                "crushcost",    True),
     ("waste",        "Waste (KG)",                            "series",       False),
     ("finance",      "Income vs Expense (₹)",                 "finance",      True),
 ]
@@ -260,6 +261,7 @@ def _default_layout(variant):
     base = ["consumption", "crushmerged", "cleanmerged", "inputoutput"]
     if variant == "main":
         base.insert(3, "finance")
+        base.append("crushcost")
     widgets = []
     for m in base:
         widgets.append({"id": m, "metric": m, "type": "auto",
@@ -478,12 +480,60 @@ def api_summary():
     except Exception:
         trends = {}
 
+    # ---- inventory value (finished stock × sell rate) ----
+    rate_map2 = {p["name"]: (p["sell_rate"] or 0) for p in db.execute("SELECT name, sell_rate FROM products").fetchall()}
+    _raw, _finished = logic.stock_levels(db)
+    inv_value = round(sum((fi["qty"] or 0) * rate_map2.get(fi["item_name"], 0) for fi in _finished), 2)
+    kpi["inventory_value"] = inv_value
     payload = dict(
         range=dict(start=s, end=e), kpi=kpi, series=series,
         shift_totals=shift_totals, trends=trends,
         crushing_products=crushing_products, cleaning_products=cleaning_products,
         crushing_stack=crushing_stack, cleaning_stack=cleaning_stack,
     )
+    # ---- crushing cost-per-kg breakdown (ALL factory cost on crushing output) ----
+    def cost_cat(cats):
+        q = "SELECT COALESCE(SUM(amount_inr),0) v FROM finance WHERE direction='expense' AND entry_date BETWEEN ? AND ? AND category IN (%s)" % (
+            ",".join("?" * len(cats)))
+        return db.execute(q, (s, e, *cats)).fetchone()["v"]
+    c_raw = cost_cat(["raw_material"])
+    c_labour = cost_cat(["salary"])
+    c_power = cost_cat(["electricity"])
+    c_maint = cost_cat(["maintenance"])
+    c_other = cost_cat(["freight", "other", "payment"])
+    crush_kg = db.execute(
+        "SELECT COALESCE(SUM(crushing_total_kg),0) v FROM reports WHERE report_date BETWEEN ? AND ?",
+        (s, e)).fetchone()["v"]
+    total_cost = c_raw + c_labour + c_power + c_maint + c_other
+    cpk = round(total_cost / crush_kg, 2) if crush_kg else 0
+    payload["crush_cost"] = dict(
+        raw=round(c_raw, 2), labour=round(c_labour, 2), power=round(c_power, 2),
+        maint=round(c_maint, 2), other=round(c_other, 2),
+        total=round(total_cost, 2), output_kg=round(crush_kg, 1), cost_per_kg=cpk,
+        # per-kg components
+        pk_raw=round(c_raw / crush_kg, 2) if crush_kg else 0,
+        pk_labour=round(c_labour / crush_kg, 2) if crush_kg else 0,
+        pk_power=round(c_power / crush_kg, 2) if crush_kg else 0,
+        pk_maint=round(c_maint / crush_kg, 2) if crush_kg else 0,
+        pk_other=round(c_other / crush_kg, 2) if crush_kg else 0,
+    )
+    # monthly trend of crushing cost/kg (last 6 months)
+    trend = []
+    import calendar as _cal
+    base = date.fromisoformat(e)
+    for i in range(5, -1, -1):
+        my = base.year + (base.month - 1 - i) // 12
+        mm = (base.month - 1 - i) % 12 + 1
+        ms = f"{my:04d}-{mm:02d}-01"
+        me = f"{my:04d}-{mm:02d}-{_cal.monthrange(my, mm)[1]:02d}"
+        tc = db.execute(
+            "SELECT COALESCE(SUM(amount_inr),0) v FROM finance WHERE direction='expense' AND entry_date BETWEEN ? AND ?",
+            (ms, me)).fetchone()["v"]
+        tk = db.execute(
+            "SELECT COALESCE(SUM(crushing_total_kg),0) v FROM reports WHERE report_date BETWEEN ? AND ?",
+            (ms, me)).fetchone()["v"]
+        trend.append(dict(month=f"{my:04d}-{mm:02d}", cost_per_kg=round(tc / tk, 2) if tk else 0))
+    payload["crush_cost"]["trend"] = trend
     # only include money data if the user can see the Main dashboard
     if can_access("dash_main"):
         fin = logic.finance_summary(db, s, e)
@@ -618,6 +668,7 @@ def production_entry():
             db.execute("DELETE FROM production_lines WHERE report_id=?", (rid,))
             db.execute("DELETE FROM workers WHERE report_id=?", (rid,))
             logic.clear_source(db, "inventory_moves", "production", rid)
+            logic.clear_source(db, "inventory_moves", "cleaning", rid)
             logic.clear_source(db, "finance", "machine", rid)
             logic.clear_source(db, "finance", "prodmaint", rid)
         else:
@@ -650,6 +701,33 @@ def production_entry():
         for sl, nm, wid, att, hrs, ot, mach in wrows:
             db.execute("INSERT INTO workers (report_id,slno,name,worker_id,attendance,hours,ot_hours,machine_id) VALUES (?,?,?,?,?,?,?,?)",
                        (rid, sl, nm, wid, att, hrs, ot, mach))
+
+        # AUTO inventory: cleaning consumes GRIT as its raw material (deduct from finished grit stock)
+        grit_used = num(f, "cleaning_grit_used", float, 0)
+        if grit_used > 0:
+            # find the grit stock item name (the crushing "Ground Grit" product)
+            grit_name = None
+            for cat, nm, th, wt, tot in rows:
+                low = nm.lower()
+                if cat == "crushing" and ("ground grit" in low or "દળાયેલી" in nm):
+                    grit_name = nm
+                    break
+            if not grit_name:
+                # fall back to any existing grit stock item
+                gm = db.execute(
+                    """SELECT item_name FROM inventory_moves
+                       WHERE item_type='finished' AND (LOWER(item_name) LIKE '%ground grit%' OR item_name LIKE '%દળાયેલી%')
+                       ORDER BY id DESC LIMIT 1""").fetchone()
+                grit_name = gm["item_name"] if gm else "દળાયેલી ગ્રીટ (Ground Grit)"
+            grit_pid = prod_map.get(grit_name.split(" (")[0]) or prod_map.get(grit_name) or 0
+            avail_grit = logic.stock_for(db, "finished", grit_name)
+            if grit_used > avail_grit:
+                flash(f"⚠ Stock warning: cleaning used {grit_used:.0f} kg of grit "
+                      f"but only {avail_grit:.0f} kg was in stock. Grit inventory is now negative.", "warn")
+            logic.post_inventory(db, f.get("report_date"), "finished", grit_pid, grit_name,
+                                 -grit_used, "cleaning", rid,
+                                 "Grit consumed by cleaning production",
+                                 session.get("user_id"))
 
         # AUTO inventory: deduct raw material (input weight = buckets x bucket weight)
         input_kg = int(num(f, "raw_buckets", int)) * num(f, "bucket_weight", float, 25)
@@ -760,11 +838,24 @@ def production_entry():
     mlogs_json = json.dumps([dict(machine_id=x["machine_id"], machine_name=x["machine_name"],
                                   output_kg=x["output_kg"], units=x["units"],
                                   labour_cost=x["labour_cost"], maint_cost=x["maint_cost"]) for x in mlogs])
+    # current grit stock (for cleaning raw-material reference)
+    try:
+        grit_stock = round(logic.stock_for(db, "finished", "દળાયેલી ગ્રીટ (Ground Grit)"), 1)
+        if not grit_stock:
+            gm = db.execute(
+                """SELECT item_name FROM inventory_moves WHERE item_type='finished'
+                   AND (LOWER(item_name) LIKE '%ground grit%' OR item_name LIKE '%દળાયેલી%')
+                   ORDER BY id DESC LIMIT 1""").fetchone()
+            if gm:
+                grit_stock = round(logic.stock_for(db, "finished", gm["item_name"]), 1)
+    except Exception:
+        grit_stock = 0
     return render_template("production_entry.html", report=report,
                            materials=materials, master_workers=master_workers,
                            master_workers_json=master_workers_json,
                            machines_json=machines_json, mlogs_json=mlogs_json,
                            lines_json=lines_json, workers_json=workers_json,
+                           grit_stock=grit_stock,
                            today=date.today().isoformat())
 
 
@@ -889,10 +980,21 @@ def inventory():
             (r["item_name"], s30)).fetchone()["u"]
         avg_daily = used / 30 if used else 0
         r["days_left"] = round(r["qty"] / avg_daily, 1) if avg_daily > 0 and r.get("qty", 0) > 0 else None
+    # attach sell_rate and compute value for finished goods
+    rate_map = {p["name"]: (p["sell_rate"] or 0) for p in db.execute("SELECT name, sell_rate FROM products").fetchall()}
+    finished = [dict(fi) for fi in finished]
+    total_value = 0
+    for fi in finished:
+        rate = rate_map.get(fi["item_name"], 0)
+        fi["rate"] = rate
+        fi["value"] = round(fi["qty"] * rate, 2)
+        total_value += fi["value"]
+    total_value = round(total_value, 2)
     moves = db.execute(
         "SELECT * FROM inventory_moves ORDER BY move_date DESC, id DESC LIMIT 100"
     ).fetchall()
-    return render_template("inventory.html", raw=raw, finished=finished, moves=moves)
+    return render_template("inventory.html", raw=raw, finished=finished, moves=moves,
+                           total_value=total_value)
 
 
 @app.route("/inventory/adjust", methods=["POST"])
@@ -953,8 +1055,11 @@ def sales_entry():
         kind = f.get("kind") or "domestic"
         rid = f.get("sale_id")
 
+        pid_val = num(f, "product_id", int, None)
+        if not pid_val:   # 0 or None → inventory-only item, store NULL
+            pid_val = None
         params = (f.get("sale_date"), kind, num(f, "customer_id", int, None),
-                  num(f, "product_id", int, None), qty, rate,
+                  pid_val, qty, rate,
                   goods_cost, tax_pct, tax_amount, currency, fx,
                   freight, other, total_amt, total_inr, num(f, "received"),
                   f.get("invoice_no"), f.get("vehicle_no"), f.get("port"), f.get("container_no"),
@@ -978,7 +1083,8 @@ def sales_entry():
             rid = cur.lastrowid
 
         prod = db.execute("SELECT name FROM products WHERE id=?", (num(f, "product_id", int, 0),)).fetchone()
-        pname = prod["name"] if prod else "Product"
+        # prefer the explicit product_name from the form (handles inventory-only items with id=0)
+        pname = f.get("product_name") or (prod["name"] if prod else "Product")
         if qty > 0:
             avail = logic.stock_for(db, "finished", pname)
             if qty > avail:
@@ -1355,9 +1461,12 @@ def ledger():
     pay_total = round(sum(r["balance"] for r in suppliers if r["balance"] > 0), 2)
     cust_list = db.execute("SELECT id, COALESCE(company_name,name) nm FROM customers ORDER BY nm").fetchall()
     supp_list = db.execute("SELECT id, COALESCE(company_name,name) nm FROM suppliers ORDER BY nm").fetchall()
+    recent_pay = db.execute(
+        "SELECT * FROM payments WHERE party_type=? ORDER BY pay_date DESC, id DESC LIMIT 20", (tab,)).fetchall()
+    recent_pay = [dict(p) for p in recent_pay]
     return render_template("ledger.html", tab=tab, customers=customers, suppliers=suppliers,
                            recv_total=recv_total, pay_total=pay_total,
-                           cust_list=cust_list, supp_list=supp_list)
+                           cust_list=cust_list, supp_list=supp_list, recent_pay=recent_pay)
 
 
 # ================================================================ PAYROLL
@@ -1575,13 +1684,67 @@ def electricity():
         daily_solar = db.execute(
             "SELECT COALESCE(SUM(units),0) v FROM solar_daily WHERE log_date BETWEEN ? AND ?",
             (s, e)).fetchone()["v"]
-        rows.append(dict(month=b["month"], amount=b["amount_inr"], units=b["units"],
+        rows.append(dict(id=b["id"], month=b["month"], amount=b["amount_inr"], units=b["units"],
                          rate_per_unit=rate, solar_units=solar, daily_solar=round(daily_solar, 1),
                          production=round(prod, 1), cost_per_kg=cpk, note=b["note"]))
     # recent daily solar entries
     solar_days = db.execute("SELECT * FROM solar_daily ORDER BY log_date DESC LIMIT 30").fetchall()
     solar_days = [dict(d) for d in solar_days]
     return render_template("electricity.html", rows=rows, solar_days=solar_days)
+
+
+@app.route("/electricity/delete/<int:rid>", methods=["POST"])
+@require("finance")
+def electricity_delete(rid):
+    db = g.db
+    b = db.execute("SELECT month FROM electricity_bills WHERE id=?", (rid,)).fetchone()
+    if b:
+        logic.clear_source(db, "finance", "electricity", month_ref(b["month"]))
+        db.execute("DELETE FROM electricity_bills WHERE id=?", (rid,))
+        db.commit()
+        flash("Electricity bill deleted.", "ok")
+    return redirect(url_for("electricity"))
+
+
+@app.route("/solar/delete/<int:rid>", methods=["POST"])
+@require("finance")
+def solar_delete(rid):
+    g.db.execute("DELETE FROM solar_daily WHERE id=?", (rid,))
+    g.db.commit()
+    flash("Solar entry deleted.", "ok")
+    return redirect(url_for("electricity"))
+
+
+@app.route("/ledger/payment/delete/<int:rid>", methods=["POST"])
+@require("finance")
+def payment_delete(rid):
+    db = g.db
+    p = db.execute("SELECT * FROM payments WHERE id=?", (rid,)).fetchone()
+    if p:
+        # remove its finance posting (matched by source+ref won't work; match by note/amount/date)
+        db.execute("""DELETE FROM finance WHERE source='payment' AND amount_inr=? AND entry_date=?
+                      AND description LIKE ?""",
+                   (p["amount_inr"], p["pay_date"], f"%{p['party_name']}%"))
+        db.execute("DELETE FROM payments WHERE id=?", (rid,))
+        db.commit()
+        flash("Payment deleted.", "ok")
+    return redirect(url_for("ledger", tab=request.args.get("tab", "customer")))
+
+
+@app.route("/payroll/advance/delete/<int:rid>", methods=["POST"])
+@require("finance")
+def advance_delete(rid):
+    db = g.db
+    a = db.execute("SELECT * FROM worker_advances WHERE id=?", (rid,)).fetchone()
+    if a:
+        # if it was a 'given' advance, remove its finance posting too
+        if a["kind"] == "given":
+            db.execute("""DELETE FROM finance WHERE source='advance' AND ref_id=? AND amount_inr=?
+                          AND entry_date=?""", (a["worker_id"], a["amount"], a["entry_date"]))
+        db.execute("DELETE FROM worker_advances WHERE id=?", (rid,))
+        db.commit()
+        flash("Advance entry deleted.", "ok")
+    return redirect(url_for("payroll", month=request.args.get("month")))
 
 
 @app.route("/api/electricity_rate")
@@ -1689,13 +1852,13 @@ def masters():
                     flash(res, "err"); return redirect(url_for("masters", tab="customers"))
             elif t == "product":
                 if rid:
-                    db.execute("UPDATE products SET name=?,category=?,unit=?,low_stock=? WHERE id=?",
+                    db.execute("UPDATE products SET name=?,category=?,unit=?,low_stock=?,sell_rate=? WHERE id=?",
                                (f.get("name"), f.get("category"), f.get("unit") or "kg",
-                                num(f, "low_stock", float, 0), rid))
+                                num(f, "low_stock", float, 0), num(f, "sell_rate", float, 0), rid))
                 else:
-                    db.execute("INSERT INTO products (name,category,unit,low_stock) VALUES (?,?,?,?)",
+                    db.execute("INSERT INTO products (name,category,unit,low_stock,sell_rate) VALUES (?,?,?,?,?)",
                                (f.get("name"), f.get("category"), f.get("unit") or "kg",
-                                num(f, "low_stock", float, 0)))
+                                num(f, "low_stock", float, 0), num(f, "sell_rate", float, 0)))
             elif t == "raw":
                 if rid:
                     db.execute("UPDATE raw_materials SET name=?,unit=?,low_stock=? WHERE id=?",
