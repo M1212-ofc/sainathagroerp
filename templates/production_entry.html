@@ -11,12 +11,19 @@
       <label>Shift<select name="shift">
         <option value="Day" {{ 'selected' if report and report.shift=='Day' }}>Day (દિવસ)</option>
         <option value="Night" {{ 'selected' if report and report.shift=='Night' }}>Night (રાત)</option></select></label>
-      <label>Reel<input type="number" name="reel" value="{{ report.reel if report else '' }}"></label>
       <label>On Time<input type="time" name="on_time" value="{{ report.on_time if report else '08:00' }}"></label>
       <label>Off Time<input type="time" name="off_time" value="{{ report.off_time if report else '07:00' }}"></label>
-      <label>Persons – Machine 1<input type="number" name="persons_m1" value="{{ report.persons_m1 if report else '' }}"></label>
-      <label>Persons – Machine 2<input type="number" name="persons_m2" value="{{ report.persons_m2 if report else '' }}"></label>
     </div>
+  </fieldset>
+
+  <fieldset><legend>Machine Production &amp; Costs (મશીન)</legend>
+    <table class="lines-table"><thead><tr><th>Machine</th><th style="width:110px">Output kg</th><th style="width:100px">Units</th><th style="width:120px">Maintenance ₹</th><th style="width:110px">Workers</th><th></th></tr></thead><tbody id="machinesBody"></tbody></table>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <select id="addMachineSelect"><option value="">— re-add a removed machine —</option></select>
+      <button type="button" class="btn-add" id="addMachineBtn">+ Add selected</button>
+      <button type="button" class="btn-add" id="addAllMachines">+ Add all</button>
+    </div>
+    <small style="margin-top:6px">All machines (including Reel) load automatically. Enter each machine's output, electricity units &amp; maintenance — cost/kg is computed live. Labour is auto-counted from workers assigned to each machine. Manage machines in <a href="{{ url_for('masters', tab='machines') }}">Masters → Machines</a>.</small>
   </fieldset>
   <fieldset><legend>MGVCL Electrical Meter</legend>
     <div class="grid3">
@@ -59,15 +66,6 @@
     <small style="margin-top:6px">All workers load automatically as <b>Present</b> — just mark anyone Absent or Half-day. Manage the team in <a href="{{ url_for('masters', tab='workers') }}">Masters → Workers</a>.</small>
   </fieldset>
 
-  <fieldset><legend>Machine Production &amp; Costs (મશીન)</legend>
-    <table class="lines-table"><thead><tr><th>Machine</th><th style="width:110px">Output kg</th><th style="width:100px">Units</th><th style="width:120px">Maintenance ₹</th><th style="width:110px">Workers</th><th></th></tr></thead><tbody id="machinesBody"></tbody></table>
-    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
-      <select id="addMachineSelect"><option value="">— re-add a removed machine —</option></select>
-      <button type="button" class="btn-add" id="addMachineBtn">+ Add selected</button>
-      <button type="button" class="btn-add" id="addAllMachines">+ Add all</button>
-    </div>
-    <small style="margin-top:6px">All machines load automatically. Enter each machine's output, electricity units, labour &amp; maintenance — cost/kg is computed live. Labour &amp; maintenance post to Finance. Manage machines in <a href="{{ url_for('masters', tab='machines') }}">Masters → Machines</a>.</small>
-  </fieldset>
   <fieldset><legend>Loading / Attendance / Maintenance</legend>
     <div class="grid3">
       <label>Light Gayi – power-cut time<input type="text" name="light_gayi_time" value="{{ report.light_gayi_time if report else '' }}" placeholder="e.g. 2:15-2:45"></label>
