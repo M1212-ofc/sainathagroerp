@@ -59,7 +59,7 @@ const addSelect=document.getElementById("addWorkerSelect");
 const MW=(typeof masterWorkers!=="undefined")?masterWorkers:[];
 const MM_FORWORKER=(typeof masterMachines!=="undefined")?masterMachines:[];
 function machineOptions(sel){
-  let o='<option value="">— machine —</option>';
+  let o='<option value="">Select machine</option>';
   MM_FORWORKER.forEach(m=>{o+=`<option value="${m.id}"${String(sel)===String(m.id)?" selected":""}>${m.name}</option>`;});
   return o;
 }
@@ -81,7 +81,7 @@ function addWorkerRow(w){
       <option value="absent"${att==="absent"?" selected":""}>❌ Absent</option>
       <option value="half"${att==="half"?" selected":""}>◐ Half day</option>
     </select></td>
-    <td><select name="worker_machine">${machineOptions(w.machine_id)}</select></td>
+    <td><select name="worker_machine" class="mc-select">${machineOptions(w.machine_id)}</select></td>
     <td><input type="number" step="any" name="worker_hours" value="${hrs}" style="width:80px" placeholder="hrs"></td>
     <td><input type="number" step="any" name="worker_ot" value="${w.ot_hours||''}" style="width:80px" placeholder="OT"></td>
     <td><button type="button" class="row-del">×</button></td>`;

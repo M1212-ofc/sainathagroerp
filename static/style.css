@@ -281,3 +281,10 @@ small{color:var(--muted);font-size:11px}
 .bento-card.kpi-editing:active{cursor:grabbing}
 .bento-card.dragging{opacity:.5;outline:2px dashed var(--primary)}
 .kpi-tools .wt{background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;padding:2px 6px;line-height:1}
+
+/* ---- clearer machine dropdown & attendance inputs in worker table ---- */
+.lines-table select.mc-select{min-width:150px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;
+  background:var(--surface);color:var(--ink);font-size:13px;font-weight:500;cursor:pointer}
+.lines-table select.mc-select:focus{border-color:var(--primary);outline:none}
+.lines-table select.att-sel{padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);font-weight:500}
+.lines-table input{padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink)}
