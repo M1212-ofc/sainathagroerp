@@ -17,13 +17,13 @@
   </fieldset>
 
   <fieldset><legend>Machine Production &amp; Costs (મશીન)</legend>
-    <table class="lines-table"><thead><tr><th>Machine</th><th style="width:110px">Output kg</th><th style="width:100px">Units</th><th style="width:120px">Maintenance ₹</th><th style="width:110px">Workers</th><th></th></tr></thead><tbody id="machinesBody"></tbody></table>
+    <table class="lines-table"><thead><tr><th>Machine</th><th style="width:140px">Maintenance ₹</th><th style="width:140px">Workers</th><th></th></tr></thead><tbody id="machinesBody"></tbody></table>
     <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
       <select id="addMachineSelect"><option value="">— re-add a removed machine —</option></select>
       <button type="button" class="btn-add" id="addMachineBtn">+ Add selected</button>
       <button type="button" class="btn-add" id="addAllMachines">+ Add all</button>
     </div>
-    <small style="margin-top:6px">Output &amp; Units auto-fill from worker assignment × machine capacity (and kW for units). <b>These are estimates for reference, not exact meter readings</b> — you can type over any value. Labour is auto-counted from assigned workers. Manage machines in <a href="{{ url_for('masters', tab='machines') }}">Masters → Machines</a>.</small>
+    <small style="margin-top:6px">Assign workers to each machine (in the attendance table below) and enter maintenance if any. Labour is auto-counted from assigned workers and posts to Finance. Manage machines in <a href="{{ url_for('masters', tab='machines') }}">Masters → Machines</a>.</small>
   </fieldset>
   <fieldset><legend>MGVCL Electrical Meter</legend>
     <div class="grid3">

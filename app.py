@@ -140,7 +140,7 @@ def _close_db(_=None):
 
 # make helpers available in every template
 # bump this string whenever static files change to force browsers to reload them
-ASSET_VER = "20260712k"
+ASSET_VER = "20260712m"
 
 
 @app.context_processor
@@ -251,20 +251,19 @@ DASH_METRICS = [
     ("crushmerged",  "Crushing Production & Products (KG)",    "crushmerged",  False),
     ("cleanmerged",  "Cleaning Production & Products (KG)",    "cleanmerged",  False),
     ("inputoutput",  "Input vs Crushing Output (KG)",         "inputoutput",  False),
-    ("machines",     "Machine Performance",                   "machines",     False),
     ("waste",        "Waste (KG)",                            "series",       False),
     ("finance",      "Income vs Expense (₹)",                 "finance",      True),
 ]
 
 
 def _default_layout(variant):
-    base = ["consumption", "crushmerged", "cleanmerged", "inputoutput", "machines"]
+    base = ["consumption", "crushmerged", "cleanmerged", "inputoutput"]
     if variant == "main":
-        base.insert(4, "finance")
+        base.insert(3, "finance")
     widgets = []
     for m in base:
         widgets.append({"id": m, "metric": m, "type": "auto",
-                        "size": "large" if m in ("consumption", "machines") else "small",
+                        "size": "large" if m == "consumption" else "small",
                         "hidden": False})
     return widgets
 
@@ -485,24 +484,6 @@ def api_summary():
         crushing_products=crushing_products, cleaning_products=cleaning_products,
         crushing_stack=crushing_stack, cleaning_stack=cleaning_stack,
     )
-    # ---- per-machine breakdown for the period ----
-    machines = []
-    for mrow in db.execute(
-        """SELECT machine_id, machine_name,
-                  COALESCE(SUM(output_kg),0) out_kg,
-                  COALESCE(SUM(units),0) units,
-                  COALESCE(SUM(labour_cost),0) labour,
-                  COALESCE(SUM(maint_cost),0) maint
-           FROM machine_logs WHERE log_date BETWEEN ? AND ?
-           GROUP BY machine_id, machine_name ORDER BY out_kg DESC""", (s, e)).fetchall():
-        out_kg = round(mrow["out_kg"], 1)
-        total_cost = (mrow["labour"] or 0) + (mrow["maint"] or 0)
-        machines.append(dict(
-            id=mrow["machine_id"], name=mrow["machine_name"] or "Machine",
-            output=out_kg, units=round(mrow["units"], 1),
-            labour=round(mrow["labour"], 2), maint=round(mrow["maint"], 2),
-            cost_per_kg=round(total_cost / out_kg, 2) if out_kg else 0))
-    payload["machines"] = machines
     # only include money data if the user can see the Main dashboard
     if can_access("dash_main"):
         fin = logic.finance_summary(db, s, e)
