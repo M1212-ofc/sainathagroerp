@@ -23,7 +23,7 @@
       <button type="button" class="btn-add" id="addMachineBtn">+ Add selected</button>
       <button type="button" class="btn-add" id="addAllMachines">+ Add all</button>
     </div>
-    <small style="margin-top:6px">All machines (including Reel) load automatically. Enter each machine's output, electricity units &amp; maintenance — cost/kg is computed live. Labour is auto-counted from workers assigned to each machine. Manage machines in <a href="{{ url_for('masters', tab='machines') }}">Masters → Machines</a>.</small>
+    <small style="margin-top:6px">Output &amp; Units auto-fill from worker assignment × machine capacity (and kW for units). <b>These are estimates for reference, not exact meter readings</b> — you can type over any value. Labour is auto-counted from assigned workers. Manage machines in <a href="{{ url_for('masters', tab='machines') }}">Masters → Machines</a>.</small>
   </fieldset>
   <fieldset><legend>MGVCL Electrical Meter</legend>
     <div class="grid3">

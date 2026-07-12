@@ -140,7 +140,7 @@ def _close_db(_=None):
 
 # make helpers available in every template
 # bump this string whenever static files change to force browsers to reload them
-ASSET_VER = "20260712j"
+ASSET_VER = "20260712k"
 
 
 @app.context_processor

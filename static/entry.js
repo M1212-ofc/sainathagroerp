@@ -121,27 +121,59 @@ function rebuildMachineSelect(){
 function addMachineRow(m){
   if(!mbody)return;
   const mid=m.id||m.machine_id||'';
+  const cap=m.capacity_kg||0, kw=m.power_kw||0;
   const tr=document.createElement("tr");
   tr.innerHTML=`<td><input type="text" name="machine_name" value="${(m.name||m.machine_name||'').replace(/"/g,'&quot;')}" readonly style="background:transparent;border:none">
       <input type="hidden" name="machine_id" value="${mid}"></td>
-    <td><input type="number" step="any" name="machine_output" value="${m.output_kg||''}" style="width:100px"></td>
-    <td><input type="number" step="any" name="machine_units" value="${m.units||''}" style="width:90px"></td>
+    <td><input type="number" step="any" name="machine_output" data-mid="${mid}" data-cap="${cap}" value="${m.output_kg||''}" style="width:100px" class="mc-out"></td>
+    <td><input type="number" step="any" name="machine_units" data-mid="${mid}" data-kw="${kw}" value="${m.units||''}" style="width:90px" class="mc-units"></td>
     <td><input type="number" step="any" name="machine_maint" value="${m.maint_cost||''}" style="width:110px" placeholder="0"></td>
     <td><span class="mc-workers" data-mid="${mid}" style="font-weight:600;color:var(--primary)">0</span> assigned</td>
     <td><button type="button" class="row-del">×</button></td>`;
   mbody.appendChild(tr);
+  // if user types their own output/units, stop auto-overwriting that field
+  tr.querySelector(".mc-out").addEventListener("input",e=>e.target.dataset.touched="1");
+  tr.querySelector(".mc-units").addEventListener("input",e=>e.target.dataset.touched="1");
   tr.querySelector(".row-del").addEventListener("click",()=>{tr.remove();rebuildMachineSelect();updateMachineWorkerCounts();});
   rebuildMachineSelect();updateMachineWorkerCounts();
 }
-// live count of workers assigned to each machine
+// live count + auto-split of output (workers×capacity) and units (kW) per machine
 function updateMachineWorkerCounts(){
-  document.querySelectorAll('.mc-workers').forEach(span=>{
-    const mid=span.dataset.mid;
+  const rows=[...document.querySelectorAll('.mc-workers')];
+  // worker count per machine
+  const counts={};
+  rows.forEach(span=>{const mid=span.dataset.mid;
     const n=[...document.querySelectorAll('select[name=worker_machine]')].filter(s=>String(s.value)===String(mid)).length;
-    span.textContent=n;
-  });
+    counts[mid]=n;span.textContent=n;});
+  // total crushing output to split
+  const totalOut=window._crushingKg||0;
+  // total electricity units (from consumption field)
+  const consEl=document.getElementById("consumption");
+  const totalUnits=consEl?(parseFloat(consEl.value)||0):0;
+  // compute weights: output weight = workers × capacity ; units weight = kW (fallback workers×capacity)
+  let sumOutW=0,sumKw=0,sumFallback=0;
+  const outInputs=[...document.querySelectorAll('.mc-out')];
+  const unitInputs=[...document.querySelectorAll('.mc-units')];
+  outInputs.forEach(inp=>{const mid=inp.dataset.mid;const cap=parseFloat(inp.dataset.cap)||0;
+    const w=(counts[mid]||0)*(cap||1);sumOutW+=w;});
+  unitInputs.forEach(inp=>{const mid=inp.dataset.mid;const kw=parseFloat(inp.dataset.kw)||0;
+    const cap=parseFloat((document.querySelector(`.mc-out[data-mid="${mid}"]`)||{}).dataset?.cap)||0;
+    sumKw+=kw;sumFallback+=(counts[mid]||0)*(cap||1);});
+  // fill output (unless user typed it)
+  outInputs.forEach(inp=>{if(inp.dataset.touched)return;const mid=inp.dataset.mid;const cap=parseFloat(inp.dataset.cap)||0;
+    const w=(counts[mid]||0)*(cap||1);
+    inp.value=(sumOutW>0&&totalOut>0)?(totalOut*w/sumOutW).toFixed(0):'';});
+  // fill units by kW, fallback to worker×capacity
+  unitInputs.forEach(inp=>{if(inp.dataset.touched)return;const mid=inp.dataset.mid;const kw=parseFloat(inp.dataset.kw)||0;
+    const cap=parseFloat((document.querySelector(`.mc-out[data-mid="${mid}"]`)||{}).dataset?.cap)||0;
+    let share=0;
+    if(sumKw>0)share=kw/sumKw;
+    else if(sumFallback>0)share=((counts[mid]||0)*(cap||1))/sumFallback;
+    inp.value=(share>0&&totalUnits>0)?(totalUnits*share).toFixed(0):'';});
 }
 document.addEventListener('change',e=>{if(e.target&&e.target.name==='worker_machine')updateMachineWorkerCounts();});
+// recompute when crushing output or consumption changes
+document.addEventListener('input',e=>{if(e.target&&(e.target.name==='line_total'||e.target.id==='consumption'))updateMachineWorkerCounts();});
 if(mbody){
   if(document.getElementById("addMachineBtn"))
     document.getElementById("addMachineBtn").addEventListener("click",()=>{
