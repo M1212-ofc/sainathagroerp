@@ -110,37 +110,6 @@ async function loadData(){
   drawSpark('sparkClean',S.map(x=>x.cleaning),COLORS.night);
   drawSpark('sparkWaste',S.map(x=>x.waste),COLORS.red);
   renderWidgets();
-  renderMachines();
-}
-
-let machineChartObj=null;
-function renderMachines(){
-  const sec=document.getElementById("machineSection");
-  const cards=document.getElementById("machineCards");
-  if(!sec||!cards)return;
-  const ms=(lastData&&lastData.machines)||[];
-  if(!ms.length){sec.style.display="none";return;}
-  sec.style.display="";
-  // per-machine stat cards
-  cards.innerHTML=ms.map(m=>`<div class="eff" style="min-width:190px">
-    <span class="eff-l">${m.name}</span>
-    <span class="eff-v">${m.output.toLocaleString()} kg</span>
-    <div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.6">
-      Units: <b>${m.units.toLocaleString()}</b> · Labour: <b>₹${m.labour.toLocaleString()}</b><br>
-      Maint: <b>₹${m.maint.toLocaleString()}</b> · Cost/kg: <b style="color:var(--primary)">₹${m.cost_per_kg}</b>
-    </div></div>`).join("");
-  // output-by-machine bar chart
-  const cv=document.getElementById("machineChart");
-  if(cv&&window.Chart){
-    if(machineChartObj)machineChartObj.destroy();
-    const palette=["#2a78d6","#1baf7a","#eda100","#e34948","#4a3aa7","#e87ba4"];
-    machineChartObj=new Chart(cv,{type:"bar",
-      data:{labels:ms.map(m=>m.name),datasets:[{label:"Output KG",
-        data:ms.map(m=>m.output),backgroundColor:ms.map((m,i)=>palette[i%palette.length]),borderRadius:6}]},
-      options:{responsive:true,maintainAspectRatio:false,devicePixelRatio:Math.max(window.devicePixelRatio||1,2),
-        plugins:{legend:{display:false}},
-        scales:{x:{grid:{display:false},ticks:{color:chartInk()}},y:{grid:{color:'rgba(128,128,128,.1)'},ticks:{color:chartInk()}}}}});
-  }
 }
 
 function renderWidgets(){
@@ -200,6 +169,16 @@ function buildChart(canvas,w){
     {label:"KG",data:d.crushing_products.map(p=>p.kg),backgroundColor:COLORS.green,borderRadius:6}]},options:opts(H({horizontal:w.type!=="bar"}))};}
   else if(kind==="cleanprod"){cfg={type:auto("bar"),data:{labels:d.cleaning_products.map(p=>p.name),datasets:[
     {label:"KG",data:d.cleaning_products.map(p=>p.kg),backgroundColor:COLORS.night,borderRadius:6}]},options:opts(H({horizontal:w.type!=="bar"}))};}
+  else if(kind==="machines"){
+    const ms=(d.machines||[]);const palette=["#2a78d6","#1baf7a","#eda100","#e34948","#4a3aa7","#e87ba4"];
+    if(w.type==="doughnut"){
+      cfg={type:"doughnut",data:{labels:ms.map(m=>m.name),datasets:[{data:ms.map(m=>m.output),backgroundColor:palette.slice(0,ms.length),borderWidth:2,borderColor:"#fff"}]},options:opts()};
+    }else{
+      cfg={type:(w.type==="line"?"line":"bar"),data:{labels:ms.map(m=>m.name),datasets:[
+        {label:"Output KG",data:ms.map(m=>m.output),backgroundColor:ms.map((m,i)=>palette[i%palette.length]),borderRadius:6}]},
+        options:opts(H({noLegend:true}))};
+    }
+  }
   else if(kind==="crushmerged"||kind==="cleanmerged"){
     const stack=kind==="crushmerged"?(d.crushing_stack||{}):(d.cleaning_stack||{});
     const palette=["#2a78d6","#1baf7a","#eda100","#e34948","#4a3aa7","#e87ba4","#eb6834","#008300"];
@@ -303,6 +282,22 @@ window.addWidget=function(){const m=document.getElementById("wMetric").value,ty=
   layout.push({id:m+"_"+(++uid),metric:m,type:ty,size:sz,hidden:false});
   document.getElementById("modal-widget").style.display="none";renderWidgets();};
 
+// KPI show/hide picker
+const KPI_LABELS={crushing:"Crushing Output",consumption:"MGVCL Units",input:"Input KG",cleaning:"Cleaning KG",waste:"Waste KG",profit:"Profit ₹"};
+function openKpiPicker(){
+  const list=document.getElementById("kpiPickList");if(!list)return;
+  const cards=[...document.querySelectorAll(".bento-card")];
+  list.innerHTML=cards.map(c=>{const m=c.dataset.metric;const shown=!hiddenKpis.includes(m);
+    return `<label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+      <input type="checkbox" data-m="${m}" ${shown?"checked":""}> ${KPI_LABELS[m]||m}</label>`;}).join("");
+  list.querySelectorAll("input").forEach(cb=>cb.onchange=()=>{
+    const m=cb.dataset.m;
+    if(cb.checked)hiddenKpis=hiddenKpis.filter(x=>x!==m);
+    else if(!hiddenKpis.includes(m))hiddenKpis.push(m);
+    applyKpiVisibility();});
+  document.getElementById("modal-kpi").style.display="flex";
+}
+
 document.getElementById("periodBtns").addEventListener("click",e=>{if(e.target.tagName!=="BUTTON")return;
   document.querySelectorAll("#periodBtns button").forEach(b=>b.classList.remove("active"));
   e.target.classList.add("active");state.period=e.target.dataset.period;
@@ -320,6 +315,7 @@ document.getElementById("resetDashBtn").addEventListener("click",async()=>{
   await fetch(`/api/dashboard/layout?variant=${VARIANT}`,{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":(document.querySelector("meta[name=csrf-token]")||{}).content},body:JSON.stringify({layout:[]})});
   location.reload();});
 document.getElementById("addWidgetBtn").addEventListener("click",()=>{document.getElementById("modal-widget").style.display="flex";});
+const akb=document.getElementById("addKpiBtn");if(akb)akb.addEventListener("click",openKpiPicker);
 
 async function loadLowStock(){try{const r=await fetch("/api/low_stock");const j=await r.json();
   const el=document.getElementById("lowStockBanner");if(!el)return;

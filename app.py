@@ -140,7 +140,7 @@ def _close_db(_=None):
 
 # make helpers available in every template
 # bump this string whenever static files change to force browsers to reload them
-ASSET_VER = "20260712i"
+ASSET_VER = "20260712j"
 
 
 @app.context_processor
@@ -251,19 +251,20 @@ DASH_METRICS = [
     ("crushmerged",  "Crushing Production & Products (KG)",    "crushmerged",  False),
     ("cleanmerged",  "Cleaning Production & Products (KG)",    "cleanmerged",  False),
     ("inputoutput",  "Input vs Crushing Output (KG)",         "inputoutput",  False),
+    ("machines",     "Machine Performance",                   "machines",     False),
     ("waste",        "Waste (KG)",                            "series",       False),
     ("finance",      "Income vs Expense (₹)",                 "finance",      True),
 ]
 
 
 def _default_layout(variant):
-    base = ["consumption", "crushmerged", "cleanmerged", "inputoutput"]
+    base = ["consumption", "crushmerged", "cleanmerged", "inputoutput", "machines"]
     if variant == "main":
-        base.insert(3, "finance")
+        base.insert(4, "finance")
     widgets = []
     for m in base:
         widgets.append({"id": m, "metric": m, "type": "auto",
-                        "size": "large" if m == "consumption" else "small",
+                        "size": "large" if m in ("consumption", "machines") else "small",
                         "hidden": False})
     return widgets
 

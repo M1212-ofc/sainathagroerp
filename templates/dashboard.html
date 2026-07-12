@@ -86,19 +86,20 @@
 </section>
 
 <div id="editBar" class="edit-bar" style="display:none">
-  <span>KPI cards &amp; charts: hide with 👁 · drag charts to reorder · change chart type from each card's dropdown · </span>
-  <button id="addWidgetBtn" class="btn-primary" style="padding:6px 14px">+ Add Widget</button>
+  <span>KPI cards &amp; charts: hide 👁 · drag to reorder · resize ⬌ · change chart type per card · </span>
+  <button id="addKpiBtn" class="btn-primary" style="padding:6px 14px">+ Add / Remove KPI</button>
+  <button id="addWidgetBtn" class="btn-primary" style="padding:6px 14px">+ Add Chart</button>
   <button id="saveDashBtn" class="btn-primary" style="padding:6px 14px">Save Layout</button>
   <button id="resetDashBtn" class="btn-cancel" style="padding:6px 14px">Reset</button>
 </div>
 
-<section class="chart-grid" id="chartGrid"></section>
+<div class="modal" id="modal-kpi"><div class="modal-card">
+  <h3>Show / Hide KPI Cards</h3>
+  <div id="kpiPickList" style="display:flex;flex-direction:column;gap:8px;margin:12px 0"></div>
+  <div class="form-actions"><button type="button" class="btn-primary" onclick="document.getElementById('modal-kpi').style.display='none';renderKpiEdit();">Done</button></div>
+</div></div>
 
-<section id="machineSection" style="display:none">
-  <h3 class="page-title" style="font-size:15px;margin:22px 0 12px">Machine Performance</h3>
-  <div id="machineCards" class="eff-strip" style="margin-bottom:14px"></div>
-  <div class="chart-card"><h3>Output by Machine (KG)</h3><div class="wcanvas" style="height:240px"><canvas id="machineChart"></canvas></div></div>
-</section>
+<section class="chart-grid" id="chartGrid"></section>
 
 <div class="modal" id="modal-widget"><div class="modal-card">
   <h3>Add Widget</h3>
