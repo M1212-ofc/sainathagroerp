@@ -9,29 +9,30 @@
 @font-face{font-family:'Space Grotesk';font-weight:600;font-display:swap;src:url('fonts/sg-600.woff2') format('woff2')}
 @font-face{font-family:'Space Grotesk';font-weight:700;font-display:swap;src:url('fonts/sg-700.woff2') format('woff2')}
 :root,[data-theme="light"]{
-  --bg:#eef2f0;--bg-grad1:#e9f3ec;--bg-grad2:#eef1f6;
-  --surface:rgba(255,255,255,.75);--surface-solid:#ffffff;--surface-2:#f4f7f5;
-  --border:rgba(20,40,30,.10);--border-strong:rgba(20,40,30,.18);
-  --ink:#14231c;--muted:#5f6f68;--primary:#16a34a;--primary-2:#22c55e;--primary-ink:#ffffff;
-  --accent:#0891b2;--amber:#d97706;--red:#dc2626;--violet:#7c3aed;
+  --bg:#f0eef8;--bg-grad1:#efeaf9;--bg-grad2:#f4f0fb;
+  --surface:rgba(255,255,255,.78);--surface-solid:#ffffff;--surface-2:#f5f2fc;
+  --border:rgba(60,40,110,.10);--border-strong:rgba(60,40,110,.20);
+  --ink:#1c1633;--muted:#6b6486;--primary:#7C6CF0;--primary-2:#9b5de5;--primary-ink:#ffffff;
+  --accent:#9b5de5;--amber:#d97706;--red:#dc2626;--violet:#7c3aed;
   --hero-grad:linear-gradient(120deg,#7C6CF0 0%,#9b5de5 50%,#c04bd8 100%);--hero-ink:#ffffff;
   --pill-bg:#f0eefb;--pill-ink:#4a3aa7;
-  --shadow:0 4px 20px rgba(20,40,30,.08),0 1px 3px rgba(20,40,30,.06);--shadow-lg:0 20px 50px rgba(20,40,30,.14);
-  --sidebar-bg:linear-gradient(180deg,#0f2419,#0a1a12);--sidebar-ink:#c9ddd0;--sidebar-active:rgba(34,197,94,.18);--radius:16px;}
+  --shadow:0 4px 20px rgba(60,40,110,.10),0 1px 3px rgba(60,40,110,.06);--shadow-lg:0 20px 50px rgba(80,60,160,.18);
+  --sidebar-bg:linear-gradient(180deg,#1e1642,#140e2e);--sidebar-ink:#cfc7ee;--sidebar-active:rgba(124,108,240,.28);--radius:16px;}
 [data-theme="dark"]{
-  --bg:#070b0d;--bg-grad1:#0a1512;--bg-grad2:#0a0f18;
-  --surface:rgba(20,28,30,.66);--surface-solid:#131a1d;--surface-2:#182023;
-  --border:rgba(120,200,160,.12);--border-strong:rgba(120,200,160,.22);
-  --ink:#e7f2ec;--muted:#8ba69a;--primary:#22c55e;--primary-2:#4ade80;--primary-ink:#04140b;
-  --accent:#22d3ee;--amber:#fbbf24;--red:#f87171;--violet:#a78bfa;
+  --bg:#0b0716;--bg-grad1:#120c26;--bg-grad2:#0d0a1e;
+  --surface:rgba(28,22,48,.66);--surface-solid:#171227;--surface-2:#1f1836;
+  --border:rgba(160,140,240,.14);--border-strong:rgba(160,140,240,.26);
+  --ink:#ece7fb;--muted:#9d94c0;--primary:#8b7cf5;--primary-2:#a984ee;--primary-ink:#120a24;
+  --accent:#b07af0;--amber:#fbbf24;--red:#f87171;--violet:#a78bfa;
   --hero-grad:linear-gradient(120deg,#6d5cf0 0%,#8b47d8 50%,#a53bc0 100%);--hero-ink:#ffffff;
-  --pill-bg:#1c1830;--pill-ink:#c9c1f5;
-  --shadow:0 8px 30px rgba(0,0,0,.45);--shadow-lg:0 24px 60px rgba(0,0,0,.6);
-  --sidebar-bg:linear-gradient(180deg,#0c1713,#06100b);--sidebar-ink:#a9c6b7;--sidebar-active:rgba(34,197,94,.22);--radius:16px;}
+  --pill-bg:#241b3d;--pill-ink:#cfc4f7;
+  --shadow:0 8px 30px rgba(0,0,0,.5);--shadow-lg:0 24px 60px rgba(0,0,0,.65);
+  --sidebar-bg:linear-gradient(180deg,#160f30,#0c0820);--sidebar-ink:#b8aee0;--sidebar-active:rgba(139,124,245,.30);--radius:16px;}
 *{box-sizing:border-box}html{scroll-behavior:smooth}
 body{margin:0;font-family:'Inter',system-ui,sans-serif;font-size:14px;color:var(--ink);
-  background:radial-gradient(1200px 600px at 80% -10%,color-mix(in srgb,var(--primary) 12%,transparent),transparent),
-  radial-gradient(900px 500px at -10% 20%,color-mix(in srgb,var(--accent) 10%,transparent),transparent),
+  background:radial-gradient(1000px 600px at 85% -5%,color-mix(in srgb,var(--primary) 22%,transparent),transparent 60%),
+  radial-gradient(800px 500px at -5% 15%,color-mix(in srgb,#c04bd8 16%,transparent),transparent 55%),
+  radial-gradient(700px 700px at 50% 110%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 55%),
   linear-gradient(160deg,var(--bg-grad1),var(--bg-grad2));background-attachment:fixed;min-height:100vh;
   transition:background .4s ease,color .3s ease;}
 h1,h2,h3{margin:0;font-family:'Space Grotesk',sans-serif;letter-spacing:-.01em}
@@ -304,19 +305,17 @@ small{color:var(--muted);font-size:11px}
 .lines-table select.mc-select{min-width:120px}
 
 /* ============ STYLE D — WELCOME, GREETING, ANIMATIONS ============ */
-@keyframes wl-pop{0%{opacity:0;transform:scale(.8) translateY(20px)}100%{opacity:1;transform:scale(1) translateY(0)}}
-@keyframes wl-logo{0%{opacity:0;transform:scale(.4) rotate(-20deg)}60%{transform:scale(1.15) rotate(6deg)}100%{opacity:1;transform:scale(1) rotate(0)}}
-@keyframes wl-line{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes wl-pop{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes wl-logo{0%{opacity:0;transform:scale(.96)}100%{opacity:1;transform:scale(1)}}
+@keyframes wl-line{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:translateY(0)}}
 .welcome-overlay{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,#12101e 0%,#241a3d 55%,#3a1f52 100%);transition:opacity .7s ease,transform .7s ease}
-.welcome-overlay.fade-out{opacity:0;transform:scale(1.06)}
-.welcome-inner{text-align:center;animation:wl-pop .7s cubic-bezier(.2,.8,.2,1)}
-.welcome-logo{font-size:72px;animation:wl-logo .9s cubic-bezier(.2,.9,.3,1.3);filter:drop-shadow(0 8px 30px rgba(124,108,240,.6))}
-.welcome-hi{color:rgba(255,255,255,.7);font-size:18px;margin-top:14px;animation:wl-line .6s .3s both}
-.welcome-name{color:#fff;font-size:40px;font-weight:700;font-family:'Space Grotesk',sans-serif;margin-top:2px;
-  background:linear-gradient(120deg,#c9c1f5,#fff,#e0b3f5);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
-  animation:wl-line .6s .45s both}
-.welcome-sub{color:rgba(255,255,255,.45);font-size:13px;letter-spacing:.15em;text-transform:uppercase;margin-top:12px;animation:wl-line .6s .6s both}
+  background:linear-gradient(135deg,#14102a 0%,#231a42 55%,#33224f 100%);transition:opacity .6s ease}
+.welcome-overlay.fade-out{opacity:0}
+.welcome-inner{text-align:center;animation:wl-pop .6s cubic-bezier(.22,.61,.36,1) both}
+.welcome-hi{color:rgba(255,255,255,.65);font-size:16px;margin-top:22px;font-weight:400;animation:wl-line .5s .35s both}
+.welcome-name{color:#fff;font-size:34px;font-weight:700;font-family:'Space Grotesk',sans-serif;margin-top:4px;
+  animation:wl-line .5s .48s both}
+.welcome-sub{color:rgba(255,255,255,.4);font-size:12px;letter-spacing:.18em;text-transform:uppercase;margin-top:16px;animation:wl-line .5s .6s both}
 
 /* dashboard greeting banner */
 @keyframes greet-in{0%{opacity:0;transform:translateY(-12px)}100%{opacity:1;transform:translateY(0)}}
@@ -370,11 +369,12 @@ small{color:var(--muted);font-size:11px}
 .stat-card:nth-child(5){animation-delay:.19s}
 
 /* ============ BRAND LOGO IMAGE ============ */
-.brand-logo{width:100%;max-width:190px;height:auto;display:block;
-  background:#fff;padding:8px 10px;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.15)}
-.brand{padding:6px 4px 10px}
-.login-logo-img{width:100%;max-width:300px;height:auto;display:block;margin:0 auto 6px}
+.brand-logo{width:100%;max-width:180px;height:auto;display:block;
+  background:#ffffff;padding:10px 12px;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.12)}
+.brand{padding:8px 4px 12px}
+.login-logo-img{width:100%;max-width:280px;height:auto;display:block;margin:0 auto 4px;
+  background:#ffffff;padding:14px 20px;border-radius:14px}
 .login-brand{text-align:center}
-.welcome-logo-img{width:auto;max-width:340px;height:70px;object-fit:contain;
-  background:#fff;padding:14px 22px;border-radius:18px;box-shadow:0 8px 30px rgba(124,108,240,.4);
-  animation:wl-logo .9s cubic-bezier(.2,.9,.3,1.3)}
+.welcome-logo-img{width:auto;max-width:320px;height:64px;object-fit:contain;display:block;margin:0 auto;
+  background:#ffffff;padding:18px 28px;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.25);
+  animation:wl-logo .7s cubic-bezier(.22,.61,.36,1) both}

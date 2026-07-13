@@ -8,7 +8,7 @@ function setText(id,v){const el=document.getElementById(id);if(el)el.textContent
 function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
 
 let state={period:"7d",start:null,end:null,shift:"combined"},charts={},layout=[],metrics=[],lastData=null,editing=false,uid=0,hiddenKpis=[];
-const COLORS={green:"#22c55e",amber:"#f59e0b",blue:"#0891b2",night:"#6366f1",red:"#f87171",violet:"#a78bfa"};
+const COLORS={green:"#7C6CF0",amber:"#f59e0b",blue:"#0891b2",night:"#9b5de5",red:"#f87171",violet:"#c04bd8"};
 
 function chartInk(){return css('--muted')||'#888';}
 if(window.Chart){Chart.defaults.color=chartInk();Chart.defaults.borderColor='rgba(128,128,128,.12)';Chart.defaults.font.family='Inter';}
