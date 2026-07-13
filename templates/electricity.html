@@ -2,6 +2,12 @@
 {% block title %}Electricity · Sainath Agro ERP{% endblock %}
 {% block content %}
 <h2 class="page-title">Electricity (MGVCL)</h2>
+<div class="stat-cards">
+  <div class="stat-card"><div class="stat-ic">⚡</div><div><div class="stat-lbl">Total Bills</div><div class="stat-val">₹{{ '{:,.0f}'.format(e_summ.total_bill) }}</div></div></div>
+  <div class="stat-card"><div class="stat-ic">🔌</div><div><div class="stat-lbl">Total Units</div><div class="stat-val">{{ '{:,.0f}'.format(e_summ.total_units) }}</div></div></div>
+  <div class="stat-card"><div class="stat-ic">☀️</div><div><div class="stat-lbl">Solar Units</div><div class="stat-val">{{ '{:,.0f}'.format(e_summ.total_solar) }}</div></div></div>
+  <div class="stat-card"><div class="stat-ic">📅</div><div><div class="stat-lbl">Months</div><div class="stat-val">{{ e_summ.months }}</div></div></div>
+</div>
 
 <fieldset class="entry-form"><legend>Add / Update Monthly Bill</legend>
 <form method="post">

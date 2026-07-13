@@ -19,7 +19,13 @@
   </select>
   <a class="btn-export" href="{{ url_for('export_csv', what='sales', period='custom', start=start, end=end) }}">⬇ CSV</a>
 </form>
-<p class="range-label">Total (INR): <b>₹{{ '{:,.2f}'.format(total_inr) }}</b></p>
+<div class="stat-cards">
+  <div class="stat-card"><div class="stat-ic">💵</div><div><div class="stat-lbl">Total Sales</div><div class="stat-val">₹{{ '{:,.0f}'.format(summ.total) }}</div></div></div>
+  <div class="stat-card"><div class="stat-ic">✅</div><div><div class="stat-lbl">Received</div><div class="stat-val">₹{{ '{:,.0f}'.format(summ.received) }}</div></div></div>
+  <div class="stat-card"><div class="stat-ic">⏳</div><div><div class="stat-lbl">Pending</div><div class="stat-val">₹{{ '{:,.0f}'.format(summ.pending) }}</div></div></div>
+  <div class="stat-card"><div class="stat-ic">⚖️</div><div><div class="stat-lbl">Quantity</div><div class="stat-val">{{ '{:,.0f}'.format(summ.qty) }} <span>kg</span></div></div></div>
+  <div class="stat-card"><div class="stat-ic">🧾</div><div><div class="stat-lbl">Sales</div><div class="stat-val">{{ summ.count }}</div></div></div>
+</div>
 <div class="table-wrap"><table class="data-table">
   <thead><tr><th>Date</th><th>Kind</th><th>Customer</th><th>Product</th><th>Qty KG</th><th>Rate</th><th>Cur</th><th>Total</th><th>₹ INR</th><th>Invoice</th><th>Vehicle</th><th></th></tr></thead>
   <tbody>{% for r in rows %}<tr>

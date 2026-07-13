@@ -5,11 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}Sainath Agro ERP{% endblock %}</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}?v={{ ASSET_VER }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ ASSET_VER }}">
   <script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();</script>
   <script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}?v={{ ASSET_VER }}"></script>
 </head>
 <body>
+{% if user and show_welcome %}
+<div class="welcome-overlay" id="welcomeOverlay">
+  <div class="welcome-inner">
+    <img src="{{ url_for('static', filename='img/logo.png') }}?v={{ ASSET_VER }}" alt="Sainath Agro Industries" class="welcome-logo-img">
+    <div class="welcome-hi">Welcome back,</div>
+    <div class="welcome-name">{{ user.full_name or user.username }}</div>
+    <div class="welcome-sub">Sainath Agro Industries</div>
+  </div>
+</div>
+<script>
+(function(){var o=document.getElementById('welcomeOverlay');if(!o)return;
+  setTimeout(function(){o.classList.add('fade-out');},2200);
+  setTimeout(function(){o.remove();},3000);})();
+</script>
+{% endif %}
 {% if user %}
 <button class="menu-btn" id="menuBtn" aria-label="Menu">☰</button>
 <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme"><span class="knob" id="themeKnob">☀</span></button>
@@ -17,8 +33,7 @@
 <div class="layout">
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <span class="logo">🌾</span>
-      <div><b>SAINATH AGRO</b><small>ERP</small></div>
+      <img src="{{ url_for('static', filename='img/logo.png') }}?v={{ ASSET_VER }}" alt="Sainath Agro Industries" class="brand-logo">
     </div>
     <nav>
       {% if can_access('dash_main', False) %}<a href="{{ url_for('dashboard_main') }}" class="{{ 'active' if request.endpoint=='dashboard_main' }}">📊 Main Dashboard</a>{% endif %}

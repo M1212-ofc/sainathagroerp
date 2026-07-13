@@ -4,13 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login · Sainath Agro ERP</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/logo.png') }}?v={{ ASSET_VER }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ ASSET_VER }}">
   <script>(function(){var t=localStorage.getItem('theme')||'light';document.documentElement.setAttribute('data-theme',t);})();</script>
 </head>
 <body class="login-body">
   <div class="login-card">
-    <div class="login-brand"><span class="logo">🌾</span>
-      <h1>SAINATH AGRO</h1><p>Industries · ERP Portal</p></div>
+    <div class="login-brand">
+      <img src="{{ url_for('static', filename='img/logo.png') }}?v={{ ASSET_VER }}" alt="Sainath Agro Industries" class="login-logo-img">
+      <p>ERP Portal</p></div>
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for cat, msg in messages %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
     {% endwith %}

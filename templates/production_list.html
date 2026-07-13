@@ -18,6 +18,14 @@
   </div>
   <a class="btn-export" href="{{ url_for('export_csv', what='production', period='custom', start=start, end=end) }}">⬇ CSV</a>
 </form>
+
+<div class="stat-cards">
+  <div class="stat-card"><div class="stat-ic">🌽</div><div><div class="stat-lbl">Crushing</div><div class="stat-val">{{ '{:,.0f}'.format(summ.crushing) }} <span>kg</span></div></div></div>
+  <div class="stat-card"><div class="stat-ic">✨</div><div><div class="stat-lbl">Cleaning</div><div class="stat-val">{{ '{:,.0f}'.format(summ.cleaning) }} <span>kg</span></div></div></div>
+  <div class="stat-card"><div class="stat-ic">♻️</div><div><div class="stat-lbl">Waste</div><div class="stat-val">{{ '{:,.0f}'.format(summ.waste) }} <span>kg</span></div></div></div>
+  <div class="stat-card"><div class="stat-ic">⚡</div><div><div class="stat-lbl">Units</div><div class="stat-val">{{ '{:,.0f}'.format(summ.units) }}</div></div></div>
+  <div class="stat-card"><div class="stat-ic">📋</div><div><div class="stat-lbl">Reports</div><div class="stat-val">{{ summ.days }}</div></div></div>
+</div>
 <div class="table-wrap">
 <table class="data-table">
   <thead><tr><th>Date</th><th>Shift</th><th>Units</th><th>Buckets</th><th>Crushing</th><th>Cleaning</th><th>Waste</th><th>Reporter</th><th></th></tr></thead>

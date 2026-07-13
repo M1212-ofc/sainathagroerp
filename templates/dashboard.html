@@ -2,6 +2,21 @@
 {% set is_main = (variant == 'main') %}
 {% block title %}{{ 'Main' if is_main else 'Production' }} Dashboard · Sainath Agro ERP{% endblock %}
 {% block content %}
+<div class="greet-banner" id="greetBanner">
+  <div>
+    <div class="greet-hi" id="greetHi">Hello</div>
+    <div class="greet-name">{{ user.full_name or user.username }}</div>
+  </div>
+  <div class="greet-date" id="greetDate"></div>
+</div>
+<script>
+(function(){
+  var h=new Date().getHours();var g=h<12?'Good morning':h<17?'Good afternoon':'Good evening';
+  var hi=document.getElementById('greetHi');if(hi)hi.textContent=g+',';
+  var d=document.getElementById('greetDate');
+  if(d)d.textContent=new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});
+})();
+</script>
 <div class="page-head">
   <div>
     <h2>{{ 'Main Dashboard' if is_main else 'Production Dashboard' }}</h2>

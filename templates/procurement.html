@@ -11,7 +11,13 @@
   </div>
   <div class="custom-range"><input type="date" name="start" value="{{ start }}"><span>to</span><input type="date" name="end" value="{{ end }}"><button name="period" value="custom">Apply</button></div>
 </form>
-<p class="range-label">Total procurement cost: <b>₹{{ '{:,.2f}'.format(total) }}</b></p>
+<div class="stat-cards">
+  <div class="stat-card"><div class="stat-ic">💰</div><div><div class="stat-lbl">Total Cost</div><div class="stat-val">₹{{ '{:,.0f}'.format(summ.total) }}</div></div></div>
+  <div class="stat-card"><div class="stat-ic">🌽</div><div><div class="stat-lbl">Quantity</div><div class="stat-val">{{ '{:,.0f}'.format(summ.qty) }} <span>kg</span></div></div></div>
+  <div class="stat-card"><div class="stat-ic">✅</div><div><div class="stat-lbl">Paid</div><div class="stat-val">₹{{ '{:,.0f}'.format(summ.paid) }}</div></div></div>
+  <div class="stat-card"><div class="stat-ic">⏳</div><div><div class="stat-lbl">Due</div><div class="stat-val">₹{{ '{:,.0f}'.format(summ.due) }}</div></div></div>
+  <div class="stat-card"><div class="stat-ic">📦</div><div><div class="stat-lbl">Entries</div><div class="stat-val">{{ summ.count }}</div></div></div>
+</div>
 <div class="table-wrap"><table class="data-table">
   <thead><tr><th>Date</th><th>Material</th><th>Supplier</th><th>Village</th><th>Transport</th><th>Vehicle</th><th>Qty KG</th><th>Rate</th><th>Freight</th><th>Total ₹</th><th>Paid</th><th></th></tr></thead>
   <tbody>

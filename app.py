@@ -140,12 +140,14 @@ def _close_db(_=None):
 
 # make helpers available in every template
 # bump this string whenever static files change to force browsers to reload them
-ASSET_VER = "20260712y"
+ASSET_VER = "20260713e"
 
 
 @app.context_processor
 def inject_helpers():
-    return {"user": current_user(), "can_access": can_access, "ASSET_VER": ASSET_VER}
+    welcome = session.pop("just_logged_in", False)
+    return {"user": current_user(), "can_access": can_access, "ASSET_VER": ASSET_VER,
+            "show_welcome": welcome}
 
 
 # ---------------------------------------------------------------- date ranges
@@ -200,6 +202,7 @@ def login():
             session["role"] = row["role"]
             session["perms"] = load_perms(row)
             session.permanent = True
+            session["just_logged_in"] = True
             return redirect(url_for("home"))
         _record_attempt(ip)
         flash("Invalid username or password.", "err")
@@ -559,7 +562,14 @@ def production_list():
         "SELECT * FROM reports WHERE report_date BETWEEN ? AND ? ORDER BY report_date DESC, shift",
         (s, e),
     ).fetchall()
-    return render_template("production_list.html", rows=rows, period=period, start=s, end=e)
+    summ = dict(
+        crushing=round(sum(r["crushing_total_kg"] or 0 for r in rows), 1),
+        cleaning=round(sum(r["cleaning_total_kg"] or 0 for r in rows), 1),
+        waste=round(sum(r["waste_kg"] or 0 for r in rows), 1),
+        units=round(sum(r["consumption"] or 0 for r in rows), 1),
+        days=len(rows),
+    )
+    return render_template("production_list.html", rows=rows, period=period, start=s, end=e, summ=summ)
 
 
 @app.route("/production/entry", methods=["GET", "POST"])
@@ -885,8 +895,12 @@ def procurement_list():
         (s, e),
     ).fetchall()
     total = sum(r["total_cost"] or 0 for r in rows)
+    total_qty = sum(r["quantity_kg"] or 0 for r in rows)
+    total_paid = sum(r["paid"] or 0 for r in rows)
+    summ = dict(total=round(total, 2), qty=round(total_qty, 1),
+                paid=round(total_paid, 2), due=round(total - total_paid, 2), count=len(rows))
     return render_template("procurement.html", rows=rows, period=period,
-                           start=s, end=e, total=round(total, 2))
+                           start=s, end=e, total=round(total, 2), summ=summ)
 
 
 @app.route("/procurement/entry", methods=["GET", "POST"])
@@ -1031,8 +1045,12 @@ def sales_list():
     q += " ORDER BY sa.sale_date DESC, sa.id DESC"
     rows = g.db.execute(q, args).fetchall()
     total_inr = sum(r["total_inr"] or 0 for r in rows)
+    total_recv = sum(r["received"] or 0 for r in rows)
+    total_qty = sum(r["quantity_kg"] or 0 for r in rows)
+    summ = dict(total=round(total_inr, 2), received=round(total_recv, 2),
+                pending=round(total_inr - total_recv, 2), qty=round(total_qty, 1), count=len(rows))
     return render_template("sales.html", rows=rows, period=period, start=s, end=e,
-                           kind=kind, total_inr=round(total_inr, 2))
+                           kind=kind, total_inr=round(total_inr, 2), summ=summ)
 
 
 @app.route("/sales/entry", methods=["GET", "POST"])
@@ -1690,7 +1708,12 @@ def electricity():
     # recent daily solar entries
     solar_days = db.execute("SELECT * FROM solar_daily ORDER BY log_date DESC LIMIT 30").fetchall()
     solar_days = [dict(d) for d in solar_days]
-    return render_template("electricity.html", rows=rows, solar_days=solar_days)
+    e_summ = dict(
+        total_bill=round(sum(r["amount"] for r in rows), 0),
+        total_units=round(sum(r["units"] or 0 for r in rows), 0),
+        total_solar=round(sum((r["solar_units"] or 0) or (r["daily_solar"] or 0) for r in rows), 0),
+        months=len(rows))
+    return render_template("electricity.html", rows=rows, solar_days=solar_days, e_summ=e_summ)
 
 
 @app.route("/electricity/delete/<int:rid>", methods=["POST"])

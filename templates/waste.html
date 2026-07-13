@@ -2,7 +2,11 @@
 {% block title %}Waste · Sainath Agro ERP{% endblock %}
 {% block content %}
 <h2 class="page-title">Waste Management</h2>
-<p class="range-label">Range total: <b>{{ '{:,.1f}'.format(total_kg) }} KG</b> · Recovered value <b>₹{{ '{:,.0f}'.format(total_val) }}</b></p>
+<div class="stat-cards">
+  <div class="stat-card"><div class="stat-ic">♻️</div><div><div class="stat-lbl">Total Waste</div><div class="stat-val">{{ '{:,.0f}'.format(total_kg) }} <span>kg</span></div></div></div>
+  <div class="stat-card"><div class="stat-ic">💸</div><div><div class="stat-lbl">Waste Cost</div><div class="stat-val">₹{{ '{:,.0f}'.format(total_cost) }}</div></div></div>
+  <div class="stat-card"><div class="stat-ic">📉</div><div><div class="stat-lbl">Avg Rate</div><div class="stat-val">₹{{ avg_raw_rate }}<span>/kg</span></div></div></div>
+</div>
 {% if can_access('waste') %}
 <fieldset class="entry-form"><legend>Add Waste Entry <span style="font-weight:400;font-size:12px;color:var(--muted)">— waste cost auto-valued at avg raw rate ₹{{ avg_raw_rate }}/kg</span></legend>
 <form method="post" action="{{ url_for('waste_page') }}">
