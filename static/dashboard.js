@@ -35,12 +35,10 @@ function drawSpark(id,vals,color,fill){
     const mn=Math.min(...vals),mx=Math.max(...vals),rng=(mx-mn)||1;
     const last=vals.map((v,i)=>{const x=(i/(vals.length-1))*(w-4)+2;const y=h-2-((v-mn)/rng)*(h-4);return x.toFixed(1)+","+y.toFixed(1);});
     const gid="sg"+id;
-    const topOp=(color==='#ffffff')?'.30':'.45';
-    html+=`<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity="${topOp}"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>`;
+    html+=`<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".45"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>`;
     html+=`<path d="${p} L${w-2},${h} L2,${h} Z" fill="url(#${gid})"/>`;
   }
-  const sw=(color==='#ffffff')?3:(fill?2.5:2);
-  html+=`<path d="${p}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  html+=`<path d="${p}" fill="none" stroke="${color}" stroke-width="${fill?2.5:2}" stroke-linecap="round" stroke-linejoin="round"/>`;
   el.innerHTML=html;
 }
 function badge(id,pct,goodUp){
@@ -108,7 +106,7 @@ async function loadData(){
   if(IS_MAIN&&d.crush_cost)setText('kCrushCpk','₹'+(d.crush_cost.cost_per_kg||0));
   // sparklines from series
   const S=d.series||[];
-  drawSpark('heroSpark',S.map(x=>x.crushing),'#ffffff',true);
+  drawSpark('heroSpark',S.map(x=>x.crushing),COLORS.green,true);
   drawSpark('sparkUnits',S.map(x=>x.consumption),COLORS.blue);
   drawSpark('sparkInput',S.map(x=>x.input_kg),COLORS.amber);
   drawSpark('sparkClean',S.map(x=>x.cleaning),COLORS.night);

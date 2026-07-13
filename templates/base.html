@@ -33,7 +33,11 @@
 <div class="layout">
   <aside class="sidebar" id="sidebar">
     <div class="brand">
-      <img src="{{ url_for('static', filename='img/logo.png') }}?v={{ ASSET_VER }}" alt="Sainath Agro Industries" class="brand-logo">
+      <img src="{{ url_for('static', filename='img/logo-icon.png') }}?v={{ ASSET_VER }}" alt="Sainath Agro Industries" class="brand-icon">
+      <div class="brand-text">
+        <b>Sainath Agro Industries</b>
+        <small>We Feed Your Animal</small>
+      </div>
     </div>
     <nav>
       {% if can_access('dash_main', False) %}<a href="{{ url_for('dashboard_main') }}" class="{{ 'active' if request.endpoint=='dashboard_main' }}">📊 Main Dashboard</a>{% endif %}
