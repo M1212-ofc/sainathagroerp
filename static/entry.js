@@ -33,15 +33,25 @@ function recalcTotals(){
   });
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=+v.toFixed(2);};
   set('ctTheli',ct);set('ctKg',ck);set('clTheli',lt);set('clKg',lk);
-  // suggest cleaning raw material = ground grit produced (only if user hasn't typed)
+  // grit consumed by cleaning = total cleaning output (sum of Grit1-4 + Bhunar)
   const ci=document.getElementById("cleanInput");
-  if(ci&&!ci.dataset.touched)ci.value=gritKg?+gritKg.toFixed(2):'';
+  if(ci){
+    ci.value=lk?+lk.toFixed(2):'';       // auto = total cleaning output
+    ci.readOnly=true;                     // it's derived, not typed
+    // live "stock after deduction" preview
+    const stockEl=document.getElementById("gritStock");
+    if(stockEl){
+      const cur=parseFloat(stockEl.dataset.stock||stockEl.textContent.replace(/[^0-9.]/g,''))||0;
+      const after=cur-(lk||0);
+      const afterEl=document.getElementById("gritAfter");
+      if(afterEl)afterEl.textContent=(lk>0)?(" → after: "+after.toFixed(0)+" kg"+(after<0?" ⚠ negative":"")):"";
+    }
+  }
   window._crushingKg=ck;              // expose crushing output for waste calc
   recalcWaste();}
 
 const crushBody=document.getElementById("crushBody");
 const cleanBody=document.getElementById("cleanBody");
-(function(){const ci=document.getElementById("cleanInput");if(ci)ci.addEventListener("input",()=>ci.dataset.touched="1");})();
 
 function addRow(line={}, category){
   // category forced by which table it's in

@@ -103,6 +103,7 @@ async function loadData(){
     setText('kIncome','₹'+fmtC(d.finance.income));setText('kExpense','₹'+fmtC(d.finance.expense));
   }
   if(IS_MAIN&&k.inventory_value!==undefined)setText('kInvValue','₹'+fmtC(k.inventory_value));
+  if(IS_MAIN&&d.crush_cost)setText('kCrushCpk','₹'+(d.crush_cost.cost_per_kg||0));
   // sparklines from series
   const S=d.series||[];
   drawSpark('heroSpark',S.map(x=>x.crushing),COLORS.green,true);
@@ -293,7 +294,7 @@ window.addWidget=function(){const m=document.getElementById("wMetric").value,ty=
   document.getElementById("modal-widget").style.display="none";renderWidgets();};
 
 // KPI show/hide picker
-const KPI_LABELS={crushing:"Crushing Output",consumption:"MGVCL Units",input:"Input KG",cleaning:"Cleaning KG",waste:"Waste KG",profit:"Profit ₹"};
+const KPI_LABELS={crushing:"Crushing Output",consumption:"MGVCL Units",input:"Input KG",cleaning:"Cleaning KG",waste:"Waste KG",profit:"Profit ₹",inventory_value:"Inventory Value ₹",crush_cpk:"Crushing Cost / kg"};
 function openKpiPicker(){
   const list=document.getElementById("kpiPickList");if(!list)return;
   const cards=[...document.querySelectorAll(".bento-card")];
